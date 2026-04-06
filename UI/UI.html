@@ -1,0 +1,2744 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<title></title>
+	<style>
+		:root {
+			--bg: #0f172a;
+			--panel: #111827;
+			--panel-2: #1f2937;
+			--muted: #94a3b8;
+			--text: #e5e7eb;
+			--primary: #22c55e;
+			--primary-2: #16a34a;
+			--border: #374151;
+			--shadow: 0 10px 25px rgba(0, 0, 0, 0.35);
+		}
+
+		* { box-sizing: border-box; }
+
+		body {
+			margin: 0;
+			font-family: Segoe UI, Arial, sans-serif;
+			background: linear-gradient(140deg, #020617 0%, #0f172a 45%, #111827 100%);
+			color: var(--text);
+			min-height: 100vh;
+		}
+
+		.app {
+			max-width: 1400px;
+			margin: 6px auto;
+			padding: 8px;
+			height: 100vh;
+			display: flex;
+			flex-direction: column;
+		}
+
+		.topbar {
+			background: rgba(17, 24, 39, 0.9);
+			border: 1px solid var(--border);
+			border-radius: 10px;
+			box-shadow: var(--shadow);
+			padding: 8px;
+			display: flex;
+			gap: 8px;
+			align-items: center;
+			flex-wrap: wrap;
+			margin-bottom: 6px;
+			flex-shrink: 0;
+		}
+
+		.source-badge {
+			font-size: 11px;
+			font-weight: 700;
+			padding: 4px 8px;
+			border-radius: 999px;
+			border: 1px solid var(--border);
+			background: #0b1220;
+			color: var(--muted);
+		}
+		.source-badge.online { color: #4ade80; border-color: #4ade80; }
+		.source-badge.offline { color: #f87171; border-color: #f87171; }
+		.source-badge svg { vertical-align: middle; margin-right: 4px; }
+
+		.tabs { display: flex; gap: 8px; }
+
+		.tab-btn,
+		.btn {
+			border: 1px solid var(--border);
+			background: #111827;
+			color: var(--text);
+			border-radius: 6px;
+			padding: 5px 10px;
+			cursor: pointer;
+			font-weight: 600;
+			font-size: 12px;
+		}
+
+		.tab-btn.active,
+		.btn.primary {
+			background: var(--primary);
+			border-color: var(--primary-2);
+			color: #062b14;
+		}
+
+		.btn:disabled {
+			opacity: 0.5;
+			cursor: not-allowed;
+		}
+
+		.search-wrap {
+			display: flex;
+			gap: 6px;
+			margin-left: auto;
+			min-width: 200px;
+			flex: 1;
+			justify-content: flex-end;
+			position: relative;
+		}
+
+		.search-wrap input {
+			width: min(300px, 100%);
+			background: #0b1220;
+			border: 1px solid var(--border);
+			border-radius: 6px;
+			color: var(--text);
+			padding: 5px 8px;
+			outline: none;
+			font-size: 12px;
+		}
+
+		#suggestionsDropdown {
+			display: none;
+			position: absolute;
+			top: 100%;
+			right: 50px;
+			width: 300px;
+			max-height: 200px;
+			overflow-y: auto;
+			background: #0b1220;
+			border: 1px solid var(--border);
+			border-radius: 6px;
+			margin-top: 4px;
+			box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+			z-index: 10;
+		}
+
+		#suggestionsDropdown.show {
+			display: block;
+		}
+
+		.suggestion-item {
+			padding: 6px 8px;
+			cursor: pointer;
+			color: var(--text);
+			font-size: 11px;
+			border-bottom: 1px solid #1f2937;
+		}
+
+		.suggestion-item:hover,
+		.suggestion-item.active {
+			background: #1f2937;
+		}
+
+		.suggestion-item:last-child {
+			border-bottom: none;
+		}
+
+		.view-toggle { display: flex; gap: 6px; }
+
+		.layout {
+			display: grid;
+			grid-template-columns: 1.25fr 1fr;
+			gap: 8px;
+			flex: 1;
+			overflow: hidden;
+		}
+
+		.panel {
+			background: rgba(17, 24, 39, 0.9);
+			border: 1px solid var(--border);
+			border-radius: 10px;
+			box-shadow: var(--shadow);
+			overflow: hidden;
+			display: flex;
+			flex-direction: column;
+			min-height: 0;
+		}
+
+		.panel-header {
+			padding: 6px 8px;
+			border-bottom: 1px solid var(--border);
+			color: var(--muted);
+			font-size: 12px;
+			display: flex;
+			justify-content: space-between;
+			align-items: center;
+			gap: 6px;
+			flex-shrink: 0;
+		}
+
+		.movies-panel-actions {
+			display: flex;
+			align-items: center;
+			gap: 8px;
+		}
+
+		.panel-inline-status {
+			font-size: 11px;
+			color: var(--muted);
+			min-height: 14px;
+		}
+
+		.detail-titlebar-actions {
+			display: flex;
+			gap: 6px;
+		}
+
+		.items {
+			padding: 6px;
+			overflow: auto;
+			flex: 1;
+		}
+
+		.items:focus {
+			outline: 2px solid rgba(250, 204, 21, 0.55);
+			outline-offset: -2px;
+		}
+
+		.items.list .item {
+			display: grid;
+			grid-template-columns: 20px 40px 1fr auto;
+			gap: 6px;
+			align-items: center;
+			border: 1px solid transparent;
+			background: #0b1220;
+			border-radius: 8px;
+			padding: 5px;
+			margin-bottom: 5px;
+			cursor: pointer;
+		}
+
+		.list-poster-wrap {
+			width: 40px;
+			height: 55px;
+			background: #111827;
+			border-radius: 4px;
+			overflow: hidden;
+			flex-shrink: 0;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+		}
+
+		.list-poster {
+			width: 100%;
+			height: 100%;
+			object-fit: cover;
+			display: block;
+		}
+
+		.list-poster.placeholder {
+			width: 100%;
+			height: 100%;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			color: var(--muted);
+			font-size: 10px;
+			font-weight: 600;
+			text-align: center;
+			padding: 4px;
+		}
+
+		.items.grid {
+			display: grid;
+			grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+			gap: 10px;
+			align-content: start;
+		}
+
+		.items.grid .item {
+			border: 1px solid transparent;
+			background: #0b1220;
+			border-radius: 10px;
+			padding: 0;
+			cursor: pointer;
+			display: flex;
+			flex-direction: column;
+			overflow: hidden;
+			position: relative;
+		}
+
+		.item-select {
+			width: 16px;
+			height: 16px;
+			accent-color: var(--primary);
+			cursor: pointer;
+		}
+
+		.item-select-grid {
+			position: absolute;
+			top: 8px;
+			right: 8px;
+			z-index: 2;
+			background: rgba(2, 6, 23, 0.8);
+			border: 1px solid var(--border);
+			border-radius: 6px;
+			padding: 2px;
+		}
+
+		.grid-poster-wrap {
+			width: 100%;
+			height: 190px;
+			background: #111827;
+			border-radius: 10px 10px 0 0;
+			overflow: hidden;
+			flex-shrink: 0;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+		}
+
+		.grid-poster {
+			width: 100%;
+			height: 100%;
+			object-fit: cover;
+			display: block;
+		}
+
+		.grid-poster.placeholder {
+			width: 100%;
+			height: 100%;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			color: var(--muted);
+			font-size: 11px;
+			font-weight: 600;
+		}
+
+		.grid-info {
+			padding: 8px;
+			flex: 1;
+			display: flex;
+			flex-direction: column;
+			gap: 3px;
+		}
+
+		.item:hover { border-color: #4b5563; }
+		.item.active {
+			border-color: #facc15 !important;
+			background: #1a2238;
+			box-shadow: 0 0 0 1px rgba(250, 204, 21, 0.55), 0 0 12px rgba(250, 204, 21, 0.28);
+		}
+
+		.item-title {
+			font-weight: 700;
+			line-height: 1.2;
+			font-size: 14px;
+		}
+
+		.item-meta {
+			color: var(--muted);
+			font-size: 12px;
+			margin-top: 4px;
+		}
+
+		.pagination {
+			display: flex;
+			gap: 4px;
+			align-items: center;
+			justify-content: space-between;
+			padding: 6px;
+			border-top: 1px solid var(--border);
+			flex-wrap: wrap;
+			flex-shrink: 0;
+			font-size: 11px;
+		}
+		.pagination-center {
+			display: inline-flex;
+			align-items: center;
+			justify-content: center;
+			gap: 4px;
+			flex-wrap: wrap;
+		}
+
+		.pagination .btn { min-width: 50px; }
+		#pageInfo {
+			color: var(--primary);
+			font-weight: 800;
+		}
+		.goto-page-wrap {
+			display: inline-flex;
+			align-items: center;
+			gap: 4px;
+		}
+		.goto-page-input {
+			width: 64px;
+			background: #0b1220;
+			border: 1px solid var(--border);
+			border-radius: 6px;
+			color: var(--text);
+			padding: 5px 6px;
+			font-size: 11px;
+			text-align: center;
+		}
+
+		.details {
+			padding: 8px;
+			overflow: auto;
+			flex: 1;
+		}
+
+		.detail-card {
+			background: #0b1220;
+			border: 1px solid var(--border);
+			border-radius: 12px;
+			padding: 14px;
+			display: grid;
+			grid-template-columns: 180px 1fr;
+			gap: 14px;
+		}
+
+		.poster {
+			width: 100%;
+			height: 340px;
+			border-radius: 10px;
+			object-fit: cover;
+			border: 1px solid var(--border);
+			background: #1f2937;
+		}
+
+		.poster.placeholder {
+			display: grid;
+			place-items: center;
+			color: var(--muted);
+			font-weight: 700;
+			font-size: 18px;
+			letter-spacing: 0.5px;
+		}
+
+		.poster-loading {
+			font-size: 13px;
+			font-weight: 600;
+			animation: shimmer 1.4s ease-in-out infinite;
+		}
+
+		@keyframes shimmer {
+			0%, 100% { opacity: 1; }
+			50% { opacity: 0.3; }
+		}
+
+		.poster-column {
+			display: flex;
+			flex-direction: column;
+			gap: 12px;
+			align-items: stretch;
+		}
+
+		.detail-content {
+			display: flex;
+			flex-direction: column;
+			gap: 14px;
+			min-width: 0;
+		}
+
+		.api-details-row {
+			grid-column: 1 / -1;
+			display: flex;
+			flex-direction: column;
+			gap: 8px;
+			min-width: 0;
+		}
+
+		.detail-side-label {
+			color: var(--muted);
+			font-size: 13px;
+			font-weight: 600;
+		}
+
+		.detail-title {
+			margin: 0 0 10px;
+			font-size: 22px;
+			line-height: 1.2;
+		}
+
+		.detail-grid {
+			display: grid;
+			grid-template-columns: 150px 1fr;
+			gap: 8px 12px;
+			font-size: 14px;
+		}
+
+		.detail-input {
+			width: 100%;
+			background: #0b1220;
+			border: 1px solid var(--border);
+			border-radius: 6px;
+			color: var(--text);
+			padding: 5px 7px;
+			font-size: 13px;
+		}
+
+		.json-block {
+			margin: 0;
+			padding: 10px 12px;
+			background: #111827;
+			border: 1px solid var(--border);
+			border-radius: 10px;
+			color: #cbd5e1;
+			font-size: 12px;
+			line-height: 1.5;
+			white-space: pre-wrap;
+			word-break: break-word;
+			overflow: auto;
+		}
+
+		.plot-section {
+			grid-column: 1 / -1;
+			display: flex;
+			flex-direction: column;
+			gap: 6px;
+		}
+
+		.plot-text {
+			margin: 0;
+			padding: 10px 12px;
+			background: #111827;
+			border: 1px solid var(--border);
+			border-radius: 10px;
+			color: #cbd5e1;
+			font-size: 13px;
+			line-height: 1.45;
+			white-space: pre-wrap;
+			word-break: break-word;
+		}
+
+		.plot-input {
+			width: 100%;
+			min-height: 110px;
+			background: #0b1220;
+			border: 1px solid var(--border);
+			border-radius: 8px;
+			color: var(--text);
+			padding: 8px 10px;
+			font-size: 13px;
+			line-height: 1.45;
+			resize: vertical;
+		}
+
+		.metadata-editor {
+			display: grid;
+			grid-template-columns: 1fr auto auto;
+			gap: 6px;
+			align-items: center;
+			margin-top: 6px;
+		}
+
+		.metadata-editor input {
+			width: 100%;
+			background: #0b1220;
+			border: 1px solid var(--border);
+			border-radius: 6px;
+			color: var(--text);
+			padding: 6px 8px;
+			font-size: 12px;
+		}
+
+		.metadata-status {
+			margin-top: 6px;
+			font-size: 11px;
+			color: var(--muted);
+		}
+
+		.metadata-actions {
+			display: flex;
+			gap: 6px;
+			align-items: center;
+			margin-top: 8px;
+		}
+
+		.metadata-header {
+			display: flex;
+			justify-content: space-between;
+			align-items: center;
+			gap: 8px;
+		}
+
+		.label { color: var(--muted); }
+
+		.status {
+			padding: 18px;
+			color: var(--muted);
+			text-align: center;
+		}
+
+		@media (max-width: 1000px) {
+			.layout { grid-template-columns: 1fr; }
+			.detail-card { grid-template-columns: 1fr; }
+			.poster { max-width: 220px; }
+		}
+	</style>
+</head>
+<body>
+	<div class="app">
+		<div class="topbar">
+			<div class="tabs">
+				<button id="tabMovies" class="tab-btn active"></button>
+				<button id="tabSeries" class="tab-btn"></button>
+			</div>
+			<span id="dataSourceBadge" class="source-badge"></span>
+
+			<div class="search-wrap">
+				<input id="searchInput" type="text" placeholder="" autocomplete="off" />
+				<div id="suggestionsDropdown"></div>
+				<button id="searchBtn" class="btn"></button>
+				<button id="clearBtn" class="btn"></button>
+			</div>
+		</div>
+
+		<div class="layout">
+			<section class="panel">
+				<div class="panel-header">
+					<span id="leftTitle"></span>
+					<div class="movies-panel-actions">
+						<button id="addMovieBtn" class="btn" title="Add new movie" style="font-weight:700;font-size:15px;padding:3px 10px;">+</button>
+						<button id="selectAllPageBtn" class="btn"></button>
+						<button id="fetchAllMetadataBtn" class="btn"></button>
+						<button id="deleteSelectedBtn" class="btn"></button>
+						<span id="fetchAllStatus" class="panel-inline-status"></span>
+					</div>
+					<div class="view-toggle">
+						<button id="listViewBtn" class="btn primary"></button>
+						<button id="gridViewBtn" class="btn"></button>
+					</div>
+					<span id="countInfo"></span>
+				</div>
+				<div id="itemsContainer" class="items list" tabindex="0" aria-label=""></div>
+				<div class="pagination">
+					<button id="firstBtn" class="btn"></button>
+					<div class="pagination-center">
+						<button id="prevBtn" class="btn"></button>
+						<span id="pageInfo"></span>
+						<span class="goto-page-wrap">
+							<span id="gotoPageLabel"></span>
+							<input id="gotoPageInput" class="goto-page-input" type="number" min="1" step="1" placeholder="" />
+							<button id="gotoPageBtn" class="btn"></button>
+						</span>
+						<button id="nextBtn" class="btn"></button>
+					</div>
+					<button id="lastBtn" class="btn"></button>
+				</div>
+			</section>
+
+			<section class="panel">
+				<div class="panel-header">
+					<span id="detailsTitle"></span>
+					<div class="detail-titlebar-actions">
+						<button id="detailEditBtn" class="btn"></button>
+						<button id="detailSaveBtn" class="btn"></button>
+						<button id="detailCancelBtn" class="btn"></button>
+					</div>
+				</div>
+				<div id="detailsContainer" class="details">
+					<div class="status"></div>
+				</div>
+			</section>
+		</div>
+	</div>
+
+	<script>
+		const LIST_PAGE_SIZE = 10;
+		const GRID_PAGE_SIZE = 15;
+		const API_BASE = 'http://127.0.0.1:5000'; // Python server
+		const UI_SELECTION_STORAGE_KEY = 'movieUiSelection';
+		const UI_VIEW_MODE_STORAGE_KEY = 'movieUiViewMode';
+		const UI_PAGE_STORAGE_KEY = 'movieUiPage';
+
+		function getPersistedViewMode() {
+			const saved = (localStorage.getItem(UI_VIEW_MODE_STORAGE_KEY) || '').trim().toLowerCase();
+			return saved === 'grid' ? 'grid' : 'list';
+		}
+
+		function getPersistedPage() {
+			const saved = parseInt(localStorage.getItem(UI_PAGE_STORAGE_KEY) || '1', 10);
+			return isNaN(saved) || saved < 1 ? 1 : saved;
+		}
+
+		const state = {
+			resources: {},
+			activeTab: 'movies',
+			viewMode: getPersistedViewMode(),
+			movies: [],
+			series: [],
+			movieRows: [],
+			seriesRows: [],
+			moviesSheetName: 'movies',
+			seriesSheetName: '',
+			sourceFileName: '_mYCOllectioN-CK-PC.xlsx',
+			filtered: [],
+			page: getPersistedPage(),
+			selectedKey: null,
+			searchTerm: '',
+			posterObjectUrls: new Map(),
+			suggestions: [],
+			activeSuggestionIndex: -1,
+			suppressNextPageReset: false,
+			pageLock: null,
+			hasUnsavedChanges: false,
+			isEditingDetails: false,
+			isMetadataCollapsed: true,
+			loadedFrom: 'initializing',
+			selectedItemKeys: new Set(),
+			isBatchFetchingMetadata: false,
+			isBatchDeleting: false,
+			lastWheelPageNavAt: 0,
+			isAddingNew: false
+		};
+
+		const el = {
+			tabMovies: document.getElementById('tabMovies'),
+			tabSeries: document.getElementById('tabSeries'),
+			listViewBtn: document.getElementById('listViewBtn'),
+			gridViewBtn: document.getElementById('gridViewBtn'),
+			searchInput: document.getElementById('searchInput'),
+			suggestionsDropdown: document.getElementById('suggestionsDropdown'),
+			searchBtn: document.getElementById('searchBtn'),
+			clearBtn: document.getElementById('clearBtn'),
+			dataSourceBadge: document.getElementById('dataSourceBadge'),
+			leftTitle: document.getElementById('leftTitle'),
+			countInfo: document.getElementById('countInfo'),
+			itemsContainer: document.getElementById('itemsContainer'),
+			detailsContainer: document.getElementById('detailsContainer'),
+			detailEditBtn: document.getElementById('detailEditBtn'),
+			detailSaveBtn: document.getElementById('detailSaveBtn'),
+			detailCancelBtn: document.getElementById('detailCancelBtn'),
+			firstBtn: document.getElementById('firstBtn'),
+			prevBtn: document.getElementById('prevBtn'),
+			nextBtn: document.getElementById('nextBtn'),
+			lastBtn: document.getElementById('lastBtn'),
+			pageInfo: document.getElementById('pageInfo'),
+			gotoPageInput: document.getElementById('gotoPageInput'),
+			gotoPageLabel: document.getElementById('gotoPageLabel'),
+			gotoPageBtn: document.getElementById('gotoPageBtn'),
+			detailsTitle: document.getElementById('detailsTitle'),
+			selectAllPageBtn: document.getElementById('selectAllPageBtn'),
+			fetchAllMetadataBtn: document.getElementById('fetchAllMetadataBtn'),
+			deleteSelectedBtn: document.getElementById('deleteSelectedBtn'),
+			fetchAllStatus: document.getElementById('fetchAllStatus'),
+			addMovieBtn: document.getElementById('addMovieBtn')
+		};
+
+		function getResourceValue(path) {
+			return path.split('.').reduce((current, part) => {
+				if (!current || typeof current !== 'object') return undefined;
+				return current[part];
+			}, state.resources);
+		}
+
+		function t(path, params = {}) {
+			const template = getResourceValue(path);
+			if (typeof template !== 'string') return path;
+			return template.replace(/\{(\w+)\}/g, (_, key) => String(params[key] ?? ''));
+		}
+
+		function setText(node, text) {
+			if (node) node.textContent = text;
+		}
+
+		function statusMarkup(text) {
+			return `<div class="status">${escapeHtml(text)}</div>`;
+		}
+
+		function formatCountText(count) {
+			return count === 1
+				? t('collection.countSingular', { count })
+				: t('collection.countPlural', { count });
+		}
+
+		function formatYearSuffix(year) {
+			return year ? ` (${year})` : '';
+		}
+
+		async function loadUiResources() {
+			const payload = await callApi('/api/resources/en');
+			state.resources = payload?.ui || {};
+		}
+
+		function applyStaticStrings() {
+			document.title = t('document.title');
+			setText(el.tabMovies, t('tabs.movies'));
+			setText(el.tabSeries, t('tabs.series'));
+			setText(el.searchBtn, t('search.search'));
+			setText(el.clearBtn, t('search.clear'));
+			if (el.searchInput) el.searchInput.placeholder = t('search.placeholder');
+			setText(el.leftTitle, t('moviesPanel.title'));
+			setText(el.selectAllPageBtn, t('moviesPanel.selectAll'));
+			setText(el.fetchAllMetadataBtn, t('moviesPanel.fetchAll'));
+			setText(el.deleteSelectedBtn, t('moviesPanel.delete'));
+			setText(el.listViewBtn, t('view.list'));
+			setText(el.gridViewBtn, t('view.icons'));
+			setText(el.countInfo, t('moviesPanel.countLoading'));
+			if (el.itemsContainer) el.itemsContainer.setAttribute('aria-label', t('collection.ariaLabel'));
+			setText(el.firstBtn, t('pagination.first'));
+			setText(el.prevBtn, t('pagination.previous'));
+			setText(el.gotoPageLabel, t('pagination.goTo'));
+			if (el.gotoPageInput) el.gotoPageInput.placeholder = t('pagination.pagePlaceholder');
+			setText(el.gotoPageBtn, t('pagination.go'));
+			setText(el.nextBtn, t('pagination.next'));
+			setText(el.lastBtn, t('pagination.last'));
+			setText(el.detailsTitle, t('details.title'));
+			setText(el.detailEditBtn, t('details.edit'));
+			setText(el.detailSaveBtn, t('details.save'));
+			setText(el.detailCancelBtn, t('details.cancel'));
+			el.detailsContainer.innerHTML = statusMarkup(t('details.selectPrompt'));
+			updateDataSourceBadge();
+		}
+
+		/**
+		 * HTTP API client for the backend server
+		 */
+		async function callApi(endpoint, method = 'GET', data = null) {
+			const options = { method };
+			if (data) {
+				options.headers = { 'Content-Type': 'application/json' };
+				options.body = JSON.stringify(data);
+			}
+			const res = await fetch(`${API_BASE}${endpoint}`, options);
+			
+			// Try to parse as JSON to check for error field
+			let json;
+			try {
+				json = await res.json();
+			} catch {
+				// If response isn't valid JSON, handle as text
+				if (!res.ok) {
+					const errText = await res.text();
+					throw new Error(t('api.errorWithText', { status: res.status, text: errText }));
+				}
+				throw new Error(t('api.invalidJson'));
+			}
+			
+			// Check for error field in JSON (works for both 200 and error status codes)
+			if (json.error) {
+				throw new Error(json.error);
+			}
+			
+			// If response status is not ok but no error field, still throw
+			if (!res.ok) {
+				throw new Error(t('api.errorStatus', { status: res.status }));
+			}
+			
+			return json;
+		}
+
+		function requestBackend(action, payload = {}) {
+			switch (action) {
+				case 'loadWorkbook':
+					return callApi('/api/loadWorkbook', 'POST');
+				case 'saveWorkbook':
+					return callApi('/api/saveWorkbook', 'POST', payload);
+				case 'fetchOmdbMetadata':
+					return callApi('/api/fetchOmdbMetadata', 'POST', payload);
+				case 'importNosqlSeed':
+					return callApi('/api/importNosqlSeed', 'POST');
+				case 'exportNosqlSeed':
+					return callApi('/api/exportNosqlSeed', 'GET');
+				case 'addMovie':
+					return callApi('/api/addMovie', 'POST', payload);
+				default:
+					return Promise.reject(new Error(`Unsupported action: ${action}`));
+			}
+		}
+
+		function waitForBackendReady() {
+			// Ping the server to ensure it's running
+			return new Promise((resolve, reject) => {
+				let tries = 0;
+				const tick = async () => {
+					tries++;
+					try {
+						await callApi('/api/health');
+						console.log('Backend server ready');
+						resolve();
+					} catch (err) {
+						if (tries > 30) {
+							console.error('Backend server failed to respond after 30 attempts.');
+							reject(new Error('Backend server not responding. Make sure to run: python Backend/server.py'));
+							return;
+						}
+						console.log(`Waiting for backend... (attempt ${tries}/30)`);
+						setTimeout(tick, 200);
+					}
+				};
+				tick();
+			});
+		}
+
+		function normalize(value) {
+			return (value ?? '').toString().trim();
+		}
+
+		const MOVIE_TYPE_STORAGE_RULES = {
+			HN: { storageCase: 'MS4', storageHdd: 'M01' },
+			RG: { storageCase: 'MS4', storageHdd: 'M01' },
+			DC: { storageCase: 'MS2', storageHdd: 'M06' },
+			FN: { storageCase: 'MS4', storageHdd: 'M04' },
+			AN: { storageCase: 'MS2', storageHdd: 'M09' },
+			'3D': { storageCase: 'MS2', storageHdd: 'M06' },
+			EN: { storageCase: 'MS1', storageHdd: 'M05' }
+		};
+
+		function getMovieTypeStorageRule(movieType) {
+			const key = normalize(movieType).toUpperCase();
+			return MOVIE_TYPE_STORAGE_RULES[key] || null;
+		}
+
+		function applyMovieTypeStorageRuleToInputs(movieType, storageCaseInput, storageHddInput) {
+			const rule = getMovieTypeStorageRule(movieType);
+			if (!rule) return false;
+			if (storageCaseInput) storageCaseInput.value = rule.storageCase;
+			if (storageHddInput) storageHddInput.value = rule.storageHdd;
+			return true;
+		}
+
+		function persistSelection(item) {
+			if (!item) return;
+			const rowIndex = Number(item.rowIndex || 0);
+			if (!rowIndex || !item.sheetType) return;
+			localStorage.setItem(UI_SELECTION_STORAGE_KEY, JSON.stringify({
+				sheetType: item.sheetType,
+				rowIndex
+			}));
+		}
+
+		function getPersistedSelection() {
+			const raw = localStorage.getItem(UI_SELECTION_STORAGE_KEY) || '';
+			if (!raw) return null;
+			try {
+				const parsed = JSON.parse(raw);
+				if (!parsed || typeof parsed !== 'object') return null;
+				const sheetType = normalize(parsed.sheetType);
+				const rowIndex = Number(parsed.rowIndex || 0);
+				if (!sheetType || !rowIndex) return null;
+				return { sheetType, rowIndex };
+			} catch {
+				return null;
+			}
+		}
+
+		function getEffectiveImdbId(item) {
+			const direct = normalize(item?.imdbId);
+			if (direct) return direct;
+
+			const rawMeta = normalize(item?.metadataJson);
+			if (!rawMeta) return '';
+			try {
+				const parsed = JSON.parse(rawMeta);
+				if (!parsed || typeof parsed !== 'object') return '';
+				return normalize(parsed.imdbID || parsed.imdbId || parsed.imdb_id || '');
+			} catch {
+				return '';
+			}
+		}
+
+		function compactMetadataJson(metadataJson) {
+			const raw = normalize(metadataJson);
+			if (!raw) return '';
+			try {
+				return JSON.stringify(JSON.parse(raw));
+			} catch {
+				return raw;
+			}
+		}
+
+		function getMetadataObject(item) {
+			const rawMeta = normalize(item?.metadataJson);
+			if (!rawMeta) return {};
+			try {
+				const parsed = JSON.parse(rawMeta);
+				return parsed && typeof parsed === 'object' ? parsed : {};
+			} catch {
+				return {};
+			}
+		}
+
+		function getPlotFromItem(item) {
+			const fromItem = normalize(item?.plot);
+			if (fromItem) return fromItem;
+			const meta = getMetadataObject(item);
+			return normalize(meta.Plot || meta.plot || '');
+		}
+
+		function getDisplayLanguage(item) {
+			const meta = getMetadataObject(item);
+			const metadataLanguage = normalize(meta.Language || meta.language || '');
+			const fallbackMovieType = normalize(item['Movie Type'] || '');
+			const display = metadataLanguage || fallbackMovieType || t('values.dash');
+			const parts = display.split(',').map(s => s.trim()).filter(Boolean);
+			return parts.slice(0, 2).join(', ') || t('values.dash');
+		}
+
+		function setPlotOnItem(item, plotText) {
+			const plot = normalize(plotText);
+			item.plot = plot;
+			const meta = getMetadataObject(item);
+			meta.Plot = plot;
+			item.metadataJson = JSON.stringify(meta, null, 2);
+		}
+
+		function ensureRowCapacity(row, minLen) {
+			while (row.length < minLen) row.push('');
+		}
+
+		function buildHeaderMap(headerRow) {
+			const map = {};
+			(headerRow || []).forEach((value, idx) => {
+				const key = normalize(value).toLowerCase();
+				if (key) map[key] = idx;
+			});
+			return map;
+		}
+
+		function getHeaderIndex(headerMap, aliases, fallbackIdx = null) {
+			for (const alias of aliases) {
+				const idx = headerMap[alias];
+				if (idx !== undefined) return idx;
+			}
+			return fallbackIdx;
+		}
+
+		function syncItemToStateRows(item) {
+			const targetRows = item.sheetType === 'series' ? state.seriesRows : state.movieRows;
+			const rowIndex = Number(item.rowIndex || 0);
+			if (!targetRows || rowIndex <= 0) return;
+
+			const headerRow = Array.isArray(targetRows[0]) ? targetRows[0] : [];
+			const headerMap = buildHeaderMap(headerRow);
+			const fileCol = getHeaderIndex(headerMap, ['filename', 'file name', 'file', 'filepath', 'file path'], 0);
+
+			while (targetRows.length <= rowIndex) targetRows.push([]);
+			const row = Array.isArray(targetRows[rowIndex]) ? [...targetRows[rowIndex]] : [];
+			ensureRowCapacity(row, 15);
+			const quality = normalize(item.Quality).toLowerCase();
+			const marker = quality === 'hevc' ? 'y' : (quality === 'x264' ? '✓' : '');
+
+			row[fileCol] = item.filename || ''; // Header-mapped filename column (File/Filename)
+			row[1] = item.title || ''; // Column B title
+			row[2] = item.year || ''; // Column C year
+			row[4] = item.resolution || ''; // Column E resolution
+			row[5] = item['Movie Type'] || item.language || ''; // Column F Movie Type/language
+			row[6] = item.storageCase || ''; // Column G case
+			row[7] = item.storageHdd || ''; // Column H hdd
+			row[8] = marker; // Column I quality marker
+			row[11] = item.myRating || ''; // Column L rating
+			row[13] = item.storageSize || ''; // Column N size
+			row[14] = compactMetadataJson(item.metadataJson); // Column O metadata
+
+			targetRows[rowIndex] = row;
+		}
+
+		function applyOmdbToItem(item, omdb) {
+			const normalizedMetadata = {
+				...omdb,
+				imdbId: normalize(omdb.imdbID || omdb.imdbId || item.imdbId),
+				poster: normalize(omdb.Poster && omdb.Poster !== 'N/A' ? omdb.Poster : item.poster)
+			};
+
+			item.metadataJson = JSON.stringify(normalizedMetadata, null, 2);
+			item.imdbId = normalize(normalizedMetadata.imdbId);
+			item.poster = normalize(normalizedMetadata.poster);
+			item.title = normalize(omdb.Title) || item.title;
+			item.titleMissing = !normalize(omdb.Title);
+			item.year = normalize(omdb.Year) || item.year;
+
+			syncItemToStateRows(item);
+
+			state.hasUnsavedChanges = true;
+		}
+
+		function saveWorkbookToFile(options = {}) {
+			const {
+				quiet = false,
+				refreshDetails = true,
+				exitEditMode = true,
+				preservedPage = null,
+				preservedSelection = null
+			} = options;
+			return requestBackend('saveWorkbook', {
+				movieRows: state.movieRows,
+				seriesRows: state.seriesRows,
+				moviesSheetName: state.moviesSheetName,
+				seriesSheetName: state.seriesSheetName,
+				sourceFileName: state.sourceFileName
+			})
+				.then((result) => {
+					if (preservedPage !== null) { state.page = preservedPage; }
+					if (preservedSelection !== null) state.selectedKey = preservedSelection;
+					if (exitEditMode) state.isEditingDetails = false;
+					state.hasUnsavedChanges = false;
+					if (!quiet) {
+						if (result?.savedTo === 'firebase') {
+							alert(t('save.savedToFirebase'));
+						} else if (result?.savedTo === 'disk') {
+							alert(t('save.savedToDisk'));
+						} else {
+							alert(t('save.completed'));
+						}
+					}
+					if (refreshDetails) {
+						renderDetails();
+						updateDetailsActionButtons();
+					}
+					return result;
+				})
+				.catch((error) => {
+					alert(error.message || t('save.failed'));
+					throw error;
+				});
+		}
+
+		function getSelectedItem() {
+			return state.filtered.find(i => i.key === state.selectedKey) || null;
+		}
+
+		function isMetadataMissingForItem(item) {
+			const raw = normalize(item?.metadataJson);
+			if (!raw) return true;
+			try {
+				const parsed = JSON.parse(raw);
+				if (!parsed || typeof parsed !== 'object') return true;
+				if (String(parsed.Response ?? 'True') === 'False') return true;
+				return !normalize(parsed.Title || parsed.title);
+			} catch {
+				return true;
+			}
+		}
+
+		function currentPageSelectedItems() {
+			const pageItems = currentPageItems();
+			return pageItems.filter(item => state.selectedItemKeys.has(item.key));
+		}
+
+		function selectAllItemsOnCurrentPage() {
+			if (state.activeTab !== 'movies') return;
+			const pageItems = currentPageItems();
+			const allSelected = pageItems.length > 0 && pageItems.every(item => state.selectedItemKeys.has(item.key));
+			for (const item of pageItems) {
+				if (allSelected) {
+					state.selectedItemKeys.delete(item.key);
+				} else {
+					state.selectedItemKeys.add(item.key);
+				}
+			}
+			render();
+		}
+
+		function updateFetchAllControls() {
+			if (!el.fetchAllMetadataBtn) return;
+			const enabledForTab = state.activeTab === 'movies';
+			const pageItems = currentPageItems();
+			const selectedOnPage = currentPageSelectedItems();
+			el.fetchAllMetadataBtn.disabled = !enabledForTab || state.isBatchFetchingMetadata || state.isBatchDeleting || !selectedOnPage.length;
+			if (el.selectAllPageBtn) {
+				el.selectAllPageBtn.disabled = !enabledForTab || state.isBatchFetchingMetadata || state.isBatchDeleting || !pageItems.length;
+			}
+			if (el.deleteSelectedBtn) {
+				el.deleteSelectedBtn.disabled = !enabledForTab || state.isBatchFetchingMetadata || state.isBatchDeleting || !selectedOnPage.length;
+			}
+			if (el.fetchAllStatus) {
+				if (!enabledForTab) {
+					el.fetchAllStatus.textContent = t('fetchAll.switchToMovies');
+				} else if (state.isBatchFetchingMetadata || state.isBatchDeleting) {
+					// Keep in-progress status text intact.
+				} else if (!selectedOnPage.length) {
+					el.fetchAllStatus.textContent = '';
+				} else {
+					el.fetchAllStatus.textContent = t('fetchAll.ready', { count: selectedOnPage.length });
+				}
+			}
+		}
+
+		async function deleteSelectedItemsOnCurrentPage() {
+			if (state.activeTab !== 'movies' || state.isBatchFetchingMetadata || state.isBatchDeleting) return;
+
+			const targets = currentPageSelectedItems();
+			if (!targets.length) {
+				updateFetchAllControls();
+				return;
+			}
+
+			const confirmed = confirm(t('delete.confirm', { count: targets.length }));
+			if (!confirmed) return;
+
+			const pageLock = beginPageLock();
+			state.isBatchDeleting = true;
+			state.suppressNextPageReset = true;
+			if (el.fetchAllStatus) el.fetchAllStatus.textContent = t('delete.deleting', { count: targets.length });
+			updateFetchAllControls();
+
+			try {
+				for (const item of targets) {
+					const targetRows = item.sheetType === 'series' ? state.seriesRows : state.movieRows;
+					const rowIndex = Number(item.rowIndex || 0);
+					if (targetRows && rowIndex > 0 && rowIndex < targetRows.length) {
+						targetRows[rowIndex] = [];
+					}
+
+					if (item.sheetType === 'series') {
+						state.series = state.series.filter(x => x.key !== item.key);
+					} else {
+						state.movies = state.movies.filter(x => x.key !== item.key);
+					}
+					state.selectedItemKeys.delete(item.key);
+				}
+
+				if (targets.some(item => item.key === state.selectedKey)) {
+					clearDetailsSelection();
+				}
+
+				state.hasUnsavedChanges = true;
+				applyFilterAndRender(false, false);
+				restorePageLock(pageLock);
+				render();
+				renderDetails();
+
+				await saveWorkbookToFile({
+					quiet: true,
+					refreshDetails: false,
+					exitEditMode: false,
+					preservedPage: state.page,
+					preservedSelection: state.selectedKey
+				});
+
+				applyFilterAndRender(false, false);
+				restorePageLock(pageLock);
+				render();
+				renderDetails();
+				if (el.fetchAllStatus) el.fetchAllStatus.textContent = t('delete.complete', { count: targets.length });
+			} catch (error) {
+				if (el.fetchAllStatus) el.fetchAllStatus.textContent = error?.message || t('delete.failed');
+			} finally {
+				endPageLock(pageLock);
+				state.isBatchDeleting = false;
+				setTimeout(() => { state.suppressNextPageReset = false; }, 0);
+				updateFetchAllControls();
+			}
+		}
+
+		async function fetchAllMissingMetadataForSelectedOnPage() {
+			if (state.activeTab !== 'movies' || state.isBatchFetchingMetadata) return;
+
+			const targets = currentPageSelectedItems();
+			if (!targets.length) {
+				updateFetchAllControls();
+				return;
+			}
+
+			const pageLock = beginPageLock();
+			let success = 0;
+			let failed = 0;
+			state.isBatchFetchingMetadata = true;
+			state.suppressNextPageReset = true;
+			if (el.fetchAllStatus) el.fetchAllStatus.textContent = t('fetchAll.fetching', { count: targets.length });
+			updateFetchAllControls();
+
+			try {
+				for (const item of targets) {
+					try {
+						await fetchLatestMetadataForItem(item, null, {
+							persistChanges: false,
+							refreshUi: false,
+							manageSuppressPageReset: false,
+							externalPageLock: pageLock
+						});
+						success += 1;
+					} catch (error) {
+						failed += 1;
+						console.warn('Batch metadata fetch failed for item:', item?.title || item?.filename || item?.key, error);
+					}
+				}
+
+				if (success > 0) {
+					await saveWorkbookToFile({
+						quiet: true,
+						refreshDetails: false,
+						exitEditMode: false,
+						preservedPage: pageLock.page,
+						preservedSelection: pageLock.selectedKey
+					});
+				}
+
+				restorePageLock(pageLock);
+				render();
+				renderDetails();
+				if (el.fetchAllStatus) {
+					el.fetchAllStatus.textContent = t('fetchAll.complete', { success, failed });
+				}
+			} finally {
+				endPageLock(pageLock);
+				state.isBatchFetchingMetadata = false;
+				setTimeout(() => { state.suppressNextPageReset = false; }, 0);
+				updateFetchAllControls();
+			}
+		}
+
+		function updateDetailsActionButtons() {
+			const hasSelectedItem = !!getSelectedItem() && !state.isAddingNew;
+			if (el.detailEditBtn) {
+				el.detailEditBtn.disabled = !hasSelectedItem;
+			}
+			if (el.detailSaveBtn) {
+				el.detailSaveBtn.disabled = !state.hasUnsavedChanges || state.isAddingNew;
+			}
+			if (el.detailCancelBtn) {
+				el.detailCancelBtn.disabled = !state.isEditingDetails || state.isAddingNew;
+			}
+		}
+
+		function setEditMode(enabled) {
+			state.isEditingDetails = !!enabled;
+			renderDetails();
+			updateDetailsActionButtons();
+		}
+
+		function flushDetailFormEdits() {
+			if (!state.isEditingDetails) return;
+			const item = getSelectedItem();
+			if (!item) return;
+
+			const fields = el.detailsContainer.querySelectorAll('[data-edit-field]');
+			fields.forEach((input) => {
+				const field = input.getAttribute('data-edit-field');
+				if (!field) return;
+				const value = input.value ?? '';
+				if ((item[field] ?? '') !== value) {
+					onDetailFieldInput(item, field, value);
+				}
+			});
+		}
+
+		function onDetailFieldInput(item, field, value) {
+			if (field === 'plot') {
+				setPlotOnItem(item, value);
+			} else {
+				item[field] = value;
+			}
+			if (field === 'title') item.titleMissing = !normalize(value);
+			if (field === 'Movie Type') {
+				item.language = value;
+			}
+			if (field === 'Quality') {
+				const q = normalize(value).toLowerCase();
+				item.Quality = q;
+			}
+			syncItemToStateRows(item);
+			state.hasUnsavedChanges = true;
+			updateDetailsActionButtons();
+		}
+
+		function updateDataSourceBadge() {
+			const badge = el.dataSourceBadge;
+			const iconOnline = `<svg width="10" height="10" viewBox="0 0 10 10"><circle cx="5" cy="5" r="5" fill="#4ade80"/></svg>`;
+			const iconOffline = `<svg width="10" height="10" viewBox="0 0 10 10"><circle cx="5" cy="5" r="5" fill="#f87171"/></svg>`;
+			if (state.loadedFrom === 'firebase') {
+				badge.className = 'source-badge online';
+				badge.innerHTML = `${iconOnline} ${escapeHtml(t('source.firebase'))}`;
+			} else if (state.loadedFrom === 'nosql-seed') {
+				badge.className = 'source-badge offline';
+				badge.innerHTML = `${iconOffline} ${escapeHtml(t('source.offline'))}`;
+			} else {
+				badge.className = 'source-badge';
+				badge.innerHTML = escapeHtml(t('source.initializing'));
+			}
+		}
+
+		function applyBackendPayload(payload, defaultSourceFileName = 'Local Seed') {
+			state.moviesSheetName = payload.moviesSheetName || 'movies';
+			state.seriesSheetName = payload.seriesSheetName || '';
+			state.sourceFileName = payload.sourceFileName || defaultSourceFileName;
+			state.loadedFrom = payload.loadedFrom || 'nosql-seed';
+			state.movieRows = payload.movieRows || [];
+			state.seriesRows = payload.seriesRows || [];
+			state.movies = payload.movies || [];
+			state.series = payload.series || [];
+			state.selectedItemKeys.clear();
+			state.isMetadataCollapsed = true;
+			state.hasUnsavedChanges = false;
+			const savedSelection = getPersistedSelection();
+			if (savedSelection) {
+				const source = savedSelection.sheetType === 'series' ? state.series : state.movies;
+				const matched = source.find(i => i.sheetType === savedSelection.sheetType && Number(i.rowIndex || 0) === savedSelection.rowIndex);
+				state.selectedKey = matched ? matched.key : null;
+			} else {
+				state.selectedKey = null;
+			}
+			updateDataSourceBadge();
+			applyFilterAndRender(false, false);
+			const _restoredPage = Math.min(getPersistedPage(), totalPages());
+			state.page = _restoredPage;
+			render();
+			renderDetails();
+			updateFetchAllControls();
+		}
+
+		function generateSuggestions(query) {
+			if (!query || query.length < 2) {
+				state.suggestions = [];
+				state.activeSuggestionIndex = -1;
+				el.suggestionsDropdown.classList.remove('show');
+				return;
+			}
+
+			const q = normalizeSearchText(query);
+			const source = getActiveData();
+			const matched = new Set();
+
+			// Elastic match against item fields plus metadata keys/values.
+			source.forEach(item => {
+				if (isElasticSearchMatch(q, item)) {
+					matched.add(item.title || item.filename || '');
+				}
+			});
+
+			// Limit to 8 suggestions, prioritize titles starting with query
+			state.suggestions = Array.from(matched)
+				.filter(Boolean)
+				.sort((a, b) => {
+					const aStarts = normalizeSearchText(a).startsWith(q);
+					const bStarts = normalizeSearchText(b).startsWith(q);
+					if (aStarts && !bStarts) return -1;
+					if (!aStarts && bStarts) return 1;
+					return a.localeCompare(b);
+				})
+				.slice(0, 8);
+
+			state.activeSuggestionIndex = -1;
+			renderSuggestions();
+		}
+
+		function renderSuggestions() {
+			if (!state.suggestions.length) {
+				el.suggestionsDropdown.classList.remove('show');
+				return;
+			}
+
+			el.suggestionsDropdown.innerHTML = state.suggestions
+				.map((sug, idx) => `
+					<div class="suggestion-item ${idx === state.activeSuggestionIndex ? 'active' : ''}" data-idx="${idx}">
+						${escapeHtml(sug)}
+					</div>
+				`)
+				.join('');
+			el.suggestionsDropdown.classList.add('show');
+
+			// Attach click handlers
+			el.suggestionsDropdown.querySelectorAll('.suggestion-item').forEach(node => {
+				node.addEventListener('click', () => {
+					el.searchInput.value = node.textContent;
+					state.searchTerm = el.searchInput.value;
+					el.suggestionsDropdown.classList.remove('show');
+					applyFilterAndRender(true);
+				});
+			});
+		}
+
+		async function loadWorkbook() {
+			try {
+				const payload = await requestBackend('loadWorkbook');
+				applyBackendPayload(payload, '_mYCOllectioN-CK-PC.xlsx');
+			} catch (error) {
+				const msg = error?.message || String(error) || t('status.unknownLoadError');
+				console.error('Load error:', msg);
+				state.loadedFrom = 'initializing';
+				updateDataSourceBadge();
+				el.itemsContainer.innerHTML = `<div class="status" style="color: #ef4444; padding: 20px; white-space: pre-wrap; word-break: break-word;">${escapeHtml(t('status.errorPrefix', { message: msg }))}</div>`;
+				el.countInfo.textContent = t('collection.zeroItems');
+			}
+		}
+
+		function getActiveData() {
+			return state.activeTab === 'movies' ? state.movies : state.series;
+		}
+
+		function normalizeSearchText(value) {
+			return normalize(value)
+				.toLowerCase()
+				.replace(/[_\.\-\/]+/g, ' ')
+				.replace(/[^a-z0-9\s]/g, ' ')
+				.replace(/\s+/g, ' ')
+				.trim();
+		}
+
+		function flattenMetadataTokens(value, out) {
+			if (value == null) return;
+			if (Array.isArray(value)) {
+				value.forEach(v => flattenMetadataTokens(v, out));
+				return;
+			}
+			if (typeof value === 'object') {
+				Object.entries(value).forEach(([k, v]) => {
+					out.push(k);
+					flattenMetadataTokens(v, out);
+				});
+				return;
+			}
+			out.push(String(value));
+		}
+
+		function buildSearchCorpus(item) {
+			const baseFields = [
+				item.title,
+				item.filename,
+				item.year,
+				item.language,
+				item.resolution,
+				item.storageCase,
+				item.storageHdd,
+				item.Quality,
+				item['Movie Type'],
+				item.imdbId,
+				item.plot
+			];
+
+			const metadataTokens = [];
+			flattenMetadataTokens(getMetadataObject(item), metadataTokens);
+			return normalizeSearchText(baseFields.concat(metadataTokens).join(' '));
+		}
+
+		function isSubsequenceMatch(needle, haystack) {
+			if (!needle) return true;
+			let j = 0;
+			for (let i = 0; i < haystack.length && j < needle.length; i++) {
+				if (haystack[i] === needle[j]) j++;
+			}
+			return j === needle.length;
+		}
+
+		function isTokenElasticMatch(token, corpusWords) {
+			if (!token) return true;
+			for (const word of corpusWords) {
+				if (word.includes(token)) return true;
+				if (token.length >= 4 && isSubsequenceMatch(token, word)) return true;
+			}
+			return false;
+		}
+
+		function isElasticSearchMatch(query, item) {
+			const normalizedQuery = normalizeSearchText(query);
+			if (!normalizedQuery) return true;
+
+			const corpus = buildSearchCorpus(item);
+			if (!corpus) return false;
+			if (corpus.includes(normalizedQuery)) return true;
+
+			const queryTokens = normalizedQuery.split(' ').filter(Boolean);
+			const corpusWords = corpus.split(' ').filter(Boolean);
+			if (!queryTokens.length || !corpusWords.length) return false;
+
+			return queryTokens.every(token => isTokenElasticMatch(token, corpusWords));
+		}
+
+		function applyFilterAndRender(resetPage = true, renderAfter = true) {
+			if (state.pageLock) {
+				resetPage = false;
+			}
+			if (state.suppressNextPageReset) {
+				resetPage = false;
+				state.suppressNextPageReset = false;
+			}
+			const source = getActiveData();
+			const q = state.searchTerm.trim();
+
+			state.filtered = !q
+				? [...source]
+				: source.filter(item => isElasticSearchMatch(q, item));
+
+			if (resetPage) { state.page = 1; }
+			if (renderAfter) render();
+			updateFetchAllControls();
+		}
+
+		function totalPages() {
+			const pageSize = state.viewMode === 'grid' ? GRID_PAGE_SIZE : LIST_PAGE_SIZE;
+			return Math.max(1, Math.ceil(state.filtered.length / pageSize));
+		}
+
+		function currentPageItems() {
+			const pageSize = state.viewMode === 'grid' ? GRID_PAGE_SIZE : LIST_PAGE_SIZE;
+			const start = (state.page - 1) * pageSize;
+			return state.filtered.slice(start, start + pageSize);
+		}
+
+		function focusItemsContainer() {
+			if (!el.itemsContainer || document.activeElement === el.itemsContainer) return;
+			el.itemsContainer.focus({ preventScroll: true });
+		}
+
+		function scrollSelectedItemIntoView() {
+			if (!state.selectedKey) return;
+			const selectedNode = Array.from(el.itemsContainer.querySelectorAll('.item'))
+				.find(node => node.dataset.key === state.selectedKey);
+			if (selectedNode) {
+				selectedNode.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+			}
+		}
+
+		function selectItemByKey(key, { focusContainer = false } = {}) {
+			if (!key) return;
+			state.isAddingNew = false;
+			state.isEditingDetails = false;
+			state.isMetadataCollapsed = true;
+			state.selectedKey = key;
+			const selected = state.filtered.find(item => item.key === key);
+			persistSelection(selected);
+			render();
+			renderDetails();
+			updateDetailsActionButtons();
+			scrollSelectedItemIntoView();
+			if (focusContainer) focusItemsContainer();
+		}
+
+		function clearDetailsSelection() {
+			state.selectedKey = null;
+			localStorage.removeItem(UI_SELECTION_STORAGE_KEY);
+			state.isEditingDetails = false;
+			state.isMetadataCollapsed = true;
+		}
+
+		function navigateToPage(targetPage) {
+			const pages = totalPages();
+			const nextPage = Math.min(Math.max(1, Number(targetPage || 1)), pages);
+			if (nextPage === state.page) return false;
+			state.page = nextPage;
+			clearDetailsSelection();
+			render();
+			renderDetails();
+			return true;
+		}
+
+		function getGridColumnCount(itemNodes) {
+			if (itemNodes.length <= 1) return 1;
+			const firstTop = itemNodes[0].offsetTop;
+			let columnCount = 0;
+			for (const node of itemNodes) {
+				if (Math.abs(node.offsetTop - firstTop) > 1) break;
+				columnCount++;
+			}
+			return Math.max(1, columnCount);
+		}
+
+		function isInteractiveElement(target) {
+			return target instanceof Element
+				&& !!target.closest('input, textarea, select, button, [contenteditable=""], [contenteditable="true"], a[href]');
+		}
+
+		function moveSelectionWithArrow(key) {
+			const pageItems = currentPageItems();
+			if (!pageItems.length) return false;
+
+			const pageSize = state.viewMode === 'grid' ? GRID_PAGE_SIZE : LIST_PAGE_SIZE;
+			const pageStart = (state.page - 1) * pageSize;
+			const isReverse = key === 'ArrowUp' || key === 'ArrowLeft';
+			let currentGlobalIndex = state.filtered.findIndex(item => item.key === state.selectedKey);
+
+			if (currentGlobalIndex < 0) {
+				const fallbackIndex = isReverse
+					? Math.min(pageStart + pageItems.length - 1, state.filtered.length - 1)
+					: pageStart;
+				const fallbackItem = state.filtered[fallbackIndex];
+				if (!fallbackItem) return false;
+				state.page = Math.floor(fallbackIndex / pageSize) + 1;
+				selectItemByKey(fallbackItem.key, { focusContainer: true });
+				return true;
+			}
+
+			let delta = 0;
+			if (state.viewMode === 'grid') {
+				const itemNodes = Array.from(el.itemsContainer.querySelectorAll('.item'));
+				const columnCount = getGridColumnCount(itemNodes);
+				if (key === 'ArrowLeft') delta = -1;
+				if (key === 'ArrowRight') delta = 1;
+				if (key === 'ArrowUp') delta = -columnCount;
+				if (key === 'ArrowDown') delta = columnCount;
+			} else {
+				if (key === 'ArrowUp' || key === 'ArrowLeft') delta = -1;
+				if (key === 'ArrowDown' || key === 'ArrowRight') delta = 1;
+			}
+
+			if (!delta) return false;
+			const nextGlobalIndex = Math.min(Math.max(0, currentGlobalIndex + delta), state.filtered.length - 1);
+			const nextItem = state.filtered[nextGlobalIndex];
+			if (!nextItem) return false;
+			state.page = Math.floor(nextGlobalIndex / pageSize) + 1;
+			if (nextGlobalIndex === currentGlobalIndex) {
+				focusItemsContainer();
+				return true;
+			}
+			selectItemByKey(nextItem.key, { focusContainer: true });
+			return true;
+		}
+
+		function render() {
+			const total = state.filtered.length;
+			const pages = totalPages();
+			if (state.pageLock) {
+				const lockedPage = Math.min(Math.max(1, state.pageLock.page), pages);
+				state.page = lockedPage;
+			}
+			if (state.page > pages) { state.page = pages; }
+			if (!state.pageLock) { localStorage.setItem(UI_PAGE_STORAGE_KEY, state.page); }
+
+			el.leftTitle.textContent = state.activeTab === 'movies' ? t('tabs.movies') : t('tabs.series');
+			el.countInfo.textContent = formatCountText(total);
+			el.pageInfo.textContent = t('pagination.pageInfo', { page: state.page, pages });
+			if (el.gotoPageInput) {
+				el.gotoPageInput.value = String(state.page);
+				el.gotoPageInput.max = String(pages);
+			}
+
+			el.itemsContainer.className = `items ${state.viewMode}`;
+			const items = currentPageItems();
+
+			if (!items.length) {
+				el.itemsContainer.innerHTML = statusMarkup(t('collection.noItemsFound'));
+			} else {
+				el.itemsContainer.innerHTML = items.map(item => {
+					const activeClass = state.selectedKey === item.key ? 'active' : '';
+					const isChecked = state.selectedItemKeys.has(item.key) ? 'checked' : '';
+					if (state.viewMode === 'grid') {
+						const posterSlot = item.poster
+						? `<div class="grid-poster placeholder poster-loading" data-poster-url="${escapeHtml(item.poster)}" data-imdb-id="${escapeHtml(item.imdbId)}">${escapeHtml(t('poster.loading'))}</div>`
+						: `<div class="grid-poster placeholder" data-imdb-id="${escapeHtml(item.imdbId)}">${escapeHtml(t('poster.noPoster'))}</div>`;
+						return `
+							<article class="item ${activeClass}" data-key="${item.key}">
+								<input class="item-select item-select-grid" type="checkbox" data-key="${item.key}" ${isChecked} aria-label="${escapeHtml(t('collection.selectAria', { name: item.title || item.filename || t('values.dash') }))}" />
+								<div class="grid-poster-wrap">${posterSlot}</div>
+								<div class="grid-info">
+									<div class="item-title">${escapeHtml(item.title)}</div>
+									<div class="item-meta">${escapeHtml(item.year || t('values.dash'))} • ${escapeHtml(item.resolution || t('values.notAvailable'))}</div>
+								</div>
+							</article>`;
+					} else {
+						const posterSlot = item.poster
+						? `<div class="list-poster placeholder poster-loading" data-poster-url="${escapeHtml(item.poster)}" data-imdb-id="${escapeHtml(item.imdbId)}">${escapeHtml(t('poster.loading'))}</div>`
+						: `<div class="list-poster placeholder" data-imdb-id="${escapeHtml(item.imdbId)}">${escapeHtml(t('poster.noPoster')).replace(' ', '<br/>')}</div>`;
+						return `
+							<article class="item ${activeClass}" data-key="${item.key}">
+								<input class="item-select" type="checkbox" data-key="${item.key}" ${isChecked} aria-label="${escapeHtml(t('collection.selectAria', { name: item.title || item.filename || t('values.dash') }))}" />
+								<div class="list-poster-wrap">${posterSlot}</div>
+								<div>
+									<div class="item-title"${item.titleMissing ? ' style="opacity:0.6;font-style:italic;"' : ''}>${escapeHtml(item.title)}</div>
+									${item.filename ? `<div class="item-meta" style="font-size:11px;opacity:0.65;word-break:break-all;">${escapeHtml(item.filename)}</div>` : ''}
+									<div class="item-meta">${escapeHtml(item.language || t('values.unknown'))} • ${escapeHtml(item.resolution || t('values.notAvailable'))} • ${escapeHtml(item.year || t('values.dash'))}</div>
+								</div>
+								<div class="item-meta">${escapeHtml(item.storageHdd || t('values.dash'))}</div>
+							</article>`;
+					}
+				}).join('');
+			}
+
+			el.firstBtn.disabled = state.page <= 1;
+			el.prevBtn.disabled = state.page <= 1;
+			el.nextBtn.disabled = state.page >= pages;
+			el.lastBtn.disabled = state.page >= pages;
+
+			attachItemHandlers();
+			if (state.viewMode === 'grid') loadGridPosters();
+			if (state.viewMode === 'list') loadListPosters();
+
+			const selectedInFiltered = state.filtered.find(i => i.key === state.selectedKey);
+			if (!selectedInFiltered) {
+				state.selectedKey = null;
+				el.detailsContainer.innerHTML = statusMarkup(t('details.selectPrompt'));
+			}
+
+			updateFetchAllControls();
+		}
+
+		function escapeHtml(value) {
+			return String(value ?? '')
+				.replaceAll('&', '&amp;')
+				.replaceAll('<', '&lt;')
+				.replaceAll('>', '&gt;')
+				.replaceAll('"', '&quot;')
+				.replaceAll("'", '&#39;');
+		}
+
+		function attachItemHandlers() {
+			el.itemsContainer.querySelectorAll('.item').forEach(node => {
+				node.addEventListener('click', () => {
+					selectItemByKey(node.dataset.key, { focusContainer: true });
+				});
+			});
+
+			el.itemsContainer.querySelectorAll('.item-select').forEach(checkbox => {
+				checkbox.addEventListener('click', (event) => {
+					event.stopPropagation();
+				});
+				checkbox.addEventListener('change', (event) => {
+					event.stopPropagation();
+					const key = checkbox.dataset.key;
+					if (!key) return;
+					if (checkbox.checked) {
+						state.selectedItemKeys.add(key);
+					} else {
+						state.selectedItemKeys.delete(key);
+					}
+					updateFetchAllControls();
+				});
+			});
+		}
+
+		// ── IndexedDB poster cache (persists across sessions) ──────────────────
+		const POSTER_DB_NAME = 'MoviePosterCache_v1';
+		const POSTER_STORE   = 'posters';
+		let   _posterDb      = null;
+
+		function openPosterDb() {
+			if (_posterDb) return Promise.resolve(_posterDb);
+			return new Promise((resolve, reject) => {
+				const req = indexedDB.open(POSTER_DB_NAME, 1);
+				req.onupgradeneeded = e => e.target.result.createObjectStore(POSTER_STORE);
+				req.onsuccess  = e => { _posterDb = e.target.result; resolve(_posterDb); };
+				req.onerror    = e => reject(e.target.error);
+			});
+		}
+
+		async function dbGetPoster(url) {
+			try {
+				const db = await openPosterDb();
+				return await new Promise((resolve, reject) => {
+					const req = db.transaction(POSTER_STORE, 'readonly').objectStore(POSTER_STORE).get(url);
+					req.onsuccess = e => resolve(e.target.result ?? null);
+					req.onerror   = e => reject(e.target.error);
+				});
+			} catch { return null; }
+		}
+
+		async function dbSavePoster(url, blob) {
+			try {
+				const db = await openPosterDb();
+				await new Promise((resolve, reject) => {
+					const req = db.transaction(POSTER_STORE, 'readwrite').objectStore(POSTER_STORE).put(blob, url);
+					req.onsuccess = () => resolve();
+					req.onerror   = e => reject(e.target.error);
+				});
+			} catch { /* ignore write errors */ }
+		}
+
+		/** Load posters for all visible grid items in parallel. */
+		function loadGridPosters() {
+			const placeholders = el.itemsContainer.querySelectorAll('.grid-poster-wrap [data-poster-url], .grid-poster-wrap [data-imdb-id]');
+			placeholders.forEach(placeholder => {
+				const url = placeholder.dataset.posterUrl;
+				const imdbId = placeholder.dataset.imdbId || '';
+				if (url || imdbId) loadPosterIntoElement(url, placeholder, imdbId);
+			});
+		}
+
+		/** Load posters for all visible list items in parallel. */
+		function loadListPosters() {
+			const placeholders = el.itemsContainer.querySelectorAll('.list-poster-wrap [data-poster-url], .list-poster-wrap [data-imdb-id]');
+			placeholders.forEach(placeholder => {
+				const url = placeholder.dataset.posterUrl;
+				const imdbId = placeholder.dataset.imdbId || '';
+				if (url || imdbId) loadPosterIntoElement(url, placeholder, imdbId);
+			});
+		}
+
+		/** Search for poster URL by IMDb ID from public Cinemeta endpoint. */
+		async function searchImdbPoster(imdbId) {
+			try {
+				const resp = await fetch(`https://v3-cinemeta.strem.io/meta/movie/${encodeURIComponent(imdbId)}.json`);
+				if (!resp.ok) return '';
+				const data = await resp.json();
+				const url = normalize(data?.meta?.poster || '');
+				if (/^https?:\/\//i.test(url)) return url;
+			} catch {}
+			return '';
+		}
+
+		/** Fetch/cache a poster and replace the placeholder element with an <img>. */
+		async function loadPosterIntoElement(posterUrl, placeholder, imdbId = '') {
+			const posterClass = placeholder.classList.contains('list-poster') ? 'list-poster' : 'grid-poster';
+			let hadCorsError = false;
+			const noPosterLabel = t('poster.noPoster');
+			const corsErrorLabel = t('poster.corsError');
+
+			const looksLikeCorsError = (error) => {
+				const message = String(error?.message || error || '').toLowerCase();
+				return message.includes('cors') || message.includes('failed to fetch') || message.includes('networkerror');
+			};
+
+			const setPlaceholder = (text) => {
+				if (!placeholder.isConnected) return;
+				const label = posterClass === 'list-poster' && text === corsErrorLabel ? corsErrorLabel.replace(' ', '<br/>') : text;
+				placeholder.outerHTML = `<div class="${posterClass} placeholder">${label}</div>`;
+			};
+
+			const setImg = src => {
+				if (!placeholder.isConnected) return;
+				const img = document.createElement('img');
+				img.className = posterClass;
+				img.src = src;
+				img.onerror = () => {
+					if (!img.isConnected) return;
+					const label = hadCorsError ? corsErrorLabel : noPosterLabel;
+					const fallback = posterClass === 'list-poster' && label === corsErrorLabel ? corsErrorLabel.replace(' ', '<br/>') : label;
+					img.outerHTML = `<div class="${posterClass} placeholder">${fallback}</div>`;
+				};
+				placeholder.replaceWith(img);
+			};
+
+			// 1. Session memory
+			if (posterUrl && state.posterObjectUrls.has(posterUrl)) { 
+				setImg(state.posterObjectUrls.get(posterUrl)); 
+				return; 
+			}
+
+			// 2. IndexedDB
+			if (posterUrl) {
+				const cached = await dbGetPoster(posterUrl);
+				if (cached) {
+					const objUrl = URL.createObjectURL(cached);
+					state.posterObjectUrls.set(posterUrl, objUrl);
+					setImg(objUrl);
+					return;
+				}
+			}
+
+			// 3. Network → save → display (if posterUrl exists)
+			if (posterUrl) {
+				try {
+					const resp = await fetch(posterUrl, { mode: 'cors' });
+					if (!resp.ok) throw new Error('HTTP ' + resp.status);
+					const blob = await resp.blob();
+					await dbSavePoster(posterUrl, blob);
+					const objUrl = URL.createObjectURL(blob);
+					state.posterObjectUrls.set(posterUrl, objUrl);
+					setImg(objUrl);
+					return;
+				} catch (error) {
+					if (looksLikeCorsError(error)) hadCorsError = true;
+				}
+			}
+
+			// 4. Fallback: try IMDb search if imdbId available
+			if (imdbId) {
+				try {
+					const imdbUrl = await searchImdbPoster(imdbId);
+					if (imdbUrl) {
+						setImg(imdbUrl);
+						return;
+					}
+				} catch {}
+			}
+
+			// 5. Last resort: direct poster URL (browser may still render for display)
+			if (posterUrl) {
+				setImg(posterUrl);
+			} else {
+				// No poster found
+				setPlaceholder(noPosterLabel);
+			}
+		}
+
+		/**
+		 * Load a poster for a given URL and display it inside #posterWrap
+		 * only if the user hasn't switched to a different item meanwhile.
+		 * Priority: session memory → IndexedDB → network → direct <img> fallback
+		 */
+		async function loadAndCachePoster(posterUrl, targetKey, imdbId = '') {
+			if (!posterUrl && !imdbId) return;
+
+			const setWrap = html => {
+				if (state.selectedKey !== targetKey) return;
+				const wrap = document.getElementById('posterWrap');
+				if (wrap) wrap.outerHTML = html;
+			};
+
+			// 1. Session memory hit
+			if (posterUrl && state.posterObjectUrls.has(posterUrl)) {
+				setWrap(`<img class="poster" src="${state.posterObjectUrls.get(posterUrl)}" alt="poster" />`);
+				return;
+			}
+
+			// 2. IndexedDB cache hit
+			if (posterUrl) {
+				const cachedBlob = await dbGetPoster(posterUrl);
+				if (cachedBlob) {
+					const objUrl = URL.createObjectURL(cachedBlob);
+					state.posterObjectUrls.set(posterUrl, objUrl);
+					setWrap(`<img class="poster" src="${objUrl}" alt="poster" />`);
+					return;
+				}
+			}
+
+			// 3. Network fetch → save to IndexedDB → display
+			if (posterUrl) {
+				try {
+					const resp = await fetch(posterUrl, { mode: 'cors' });
+					if (!resp.ok) throw new Error('HTTP ' + resp.status);
+					const blob = await resp.blob();
+					await dbSavePoster(posterUrl, blob);
+					const objUrl = URL.createObjectURL(blob);
+					state.posterObjectUrls.set(posterUrl, objUrl);
+					setWrap(`<img class="poster" src="${objUrl}" alt="poster" />`);
+					return;
+				} catch {
+					// ignore and continue to imdb fallback
+				}
+			}
+
+			if (imdbId) {
+				const imdbPosterUrl = await searchImdbPoster(imdbId);
+				if (imdbPosterUrl) {
+					setWrap(`<img class="poster" src="${escapeHtml(imdbPosterUrl)}" alt="poster" />`);
+					return;
+				}
+			}
+
+			if (posterUrl) {
+				setWrap(`<img class="poster" src="${escapeHtml(posterUrl)}" alt="poster"
+					onerror="this.outerHTML='<div class=\'poster placeholder\'>${escapeHtml(t('poster.noPoster'))}</div>'" />`);
+			} else {
+				setWrap(`<div id="posterWrap" class="poster placeholder">${escapeHtml(t('poster.noPoster'))}</div>`);
+			}
+		}
+
+		async function fetchLatestMetadataForItem(item, statusEl = null, options = {}) {
+			const {
+				persistChanges = true,
+				refreshUi = true,
+				manageSuppressPageReset = true,
+				externalPageLock = null
+			} = options;
+			const pageLock = externalPageLock || beginPageLock();
+			const ownsPageLock = !externalPageLock;
+			const imdbId = normalize(item.imdbId);
+			const fallbackTitle = normalize(item.title) || normalize(item.filename);
+			const fallbackYear = normalize(item.year);
+
+			if (!imdbId && !normalize(item.filename)) {
+				if (ownsPageLock) endPageLock(pageLock);
+				throw new Error(t('fetch.missingInput'));
+			}
+
+			if (statusEl) {
+				statusEl.textContent = imdbId
+					? t('fetch.fetchingOmdb')
+					: t('fetch.fetchingFor', { title: fallbackTitle, yearSuffix: formatYearSuffix(fallbackYear) });
+			}
+
+			try {
+				if (manageSuppressPageReset) state.suppressNextPageReset = true;
+				const omdbResult = await requestBackend('fetchOmdbMetadata', {
+					imdbId,
+					filename: item.filename,
+					title: item.title,
+					year: item.year
+				});
+				const query = omdbResult?.query || {};
+				const queryTitle = normalize(query.title || '');
+				const queryYear = normalize(query.year || '');
+				const omdb = omdbResult?.omdb || omdbResult;
+				applyOmdbToItem(item, omdb);
+				if (statusEl) statusEl.textContent = imdbId
+					? t('fetch.savingWithId', { imdbId })
+					: t('fetch.savingFor', { title: queryTitle, yearSuffix: formatYearSuffix(queryYear) });
+				if (persistChanges) {
+					await saveWorkbookToFile({
+						quiet: true,
+						refreshDetails: false,
+						exitEditMode: false,
+						preservedPage: pageLock.page,
+						preservedSelection: pageLock.selectedKey
+					});
+				}
+				restorePageLock(pageLock);
+				if (statusEl) statusEl.textContent = t('fetch.refreshed');
+				if (refreshUi) {
+					refreshSelectedItemCard(item);
+					renderDetails();
+				}
+			} finally {
+				if (refreshUi) {
+					setTimeout(() => {
+						restorePageLock(pageLock);
+						render();
+						renderDetails();
+						if (ownsPageLock) endPageLock(pageLock);
+					}, 0);
+				} else {
+					restorePageLock(pageLock);
+					if (ownsPageLock) endPageLock(pageLock);
+				}
+				if (manageSuppressPageReset) {
+					setTimeout(() => { state.suppressNextPageReset = false; }, 0);
+				}
+			}
+		}
+
+		function wireMetadataActions(item) {
+			const fetchBtn = document.getElementById('fetchMetadataBtn');
+			const toggleBtn = document.getElementById('toggleMetadataBtn');
+			const imdbInput = document.getElementById('metadataImdbInput');
+			const statusEl = document.getElementById('metadataStatus');
+
+			if (toggleBtn) {
+				toggleBtn.addEventListener('click', () => {
+					state.isMetadataCollapsed = !state.isMetadataCollapsed;
+					renderDetails();
+				});
+			}
+
+			if (fetchBtn) {
+				fetchBtn.addEventListener('click', async () => {
+					const inputImdb = normalize(imdbInput?.value || '');
+					if (inputImdb && inputImdb !== normalize(item.imdbId)) {
+						item.imdbId = inputImdb;
+						syncItemToStateRows(item);
+					}
+					try {
+						await fetchLatestMetadataForItem(item, statusEl);
+					} catch (error) {
+						if (statusEl) statusEl.textContent = error.message || t('fetch.failed');
+					}
+				});
+			}
+
+		}
+
+		// ── Add New Movie helpers ──────────────────────────────────────────────
+
+		function parseFilenameForForm(filename) {
+			if (!filename) return { title: '', year: '', resolution: '', quality: '' };
+			const basename = filename.replace(/\\/g, '/').split('/').pop() || filename;
+			// Strip file extension for bracket parsing
+			const nameNoExt = basename.replace(/\.[^.[]+$/, '');
+			// Title: everything before first '[', replace dots with spaces
+			const bracketIdx = nameNoExt.indexOf('[');
+			let titlePart = bracketIdx >= 0 ? nameNoExt.slice(0, bracketIdx) : nameNoExt;
+			titlePart = titlePart.replace(/\./g, ' ').replace(/\s+/g, ' ').trim();
+			// Collect all bracketed segments
+			const allBrackets = [...nameNoExt.matchAll(/\[([^\]]*)\]/g)];
+			const year       = allBrackets.length >= 1 ? allBrackets[0][1].trim() : '';
+			const resolution = allBrackets.length >= 2 ? allBrackets[1][1].trim() : '';
+			// Quality: [X5] present → hevc, otherwise → x264
+			const quality = /\[X5\]/i.test(nameNoExt) ? 'hevc' : 'x264';
+			return { title: titlePart, year, resolution, quality };
+		}
+
+		function renderAddNewPanel() {
+			const movieTypeOpts   = ['EN','HN','AN','FN','RG','DC','3D']
+				.map(o => `<option value="${o}">${o}</option>`).join('');
+			const resolutionOpts  = ['','1080p','720p','2160p','SD']
+				.map(o => `<option value="${o}">${o || '\u2014'}</option>`).join('');
+			const qualityOpts     = `<option value="">\u2014</option><option value="hevc">hevc</option><option value="x264">x264</option>`;
+			const storageCaseOpts = ['','MS1','MS2','MS3','MS4','MS5']
+				.map(o => `<option value="${o}">${o || '\u2014'}</option>`).join('');
+			const storageHddOpts  = ['','M01','M03','M04','M05','M06','M09','M10']
+				.map(o => `<option value="${o}">${o || '\u2014'}</option>`).join('');
+
+			el.detailsContainer.innerHTML = `
+				<div class="detail-card" style="display:flex;flex-direction:column;gap:14px;">
+					<div class="detail-content" style="min-width:0;">
+						<h2 class="detail-title" style="margin-bottom:10px;">Add New Movie</h2>
+						<div class="detail-grid">
+							<div class="label">Filename</div>
+							<div style="display:flex;gap:6px;align-items:center;">
+								<input id="addNewFilename" class="detail-input" type="text"
+									placeholder="Movie.Name.[2021].[1080p].mkv" style="flex:1;min-width:0;" />
+								<input id="addNewFileBrowse" type="file" style="display:none;" />
+								<button id="addNewBrowseBtn" class="btn">Browse&hellip;</button>
+							</div>
+							<div class="label">Title</div>
+							<input id="addNewTitle" class="detail-input" type="text" placeholder="Movie Title" />
+							<div class="label">Year</div>
+							<input id="addNewYear" class="detail-input" type="text" placeholder="e.g. 2021" />
+							<div class="label">Movie Type</div>
+							<select id="addNewMovieType" class="detail-input">${movieTypeOpts}</select>
+							<div class="label">Resolution</div>
+							<select id="addNewResolution" class="detail-input">${resolutionOpts}</select>
+							<div class="label">Quality</div>
+							<select id="addNewQuality" class="detail-input">${qualityOpts}</select>
+							<div class="label">Storage Case</div>
+							<select id="addNewStorageCase" class="detail-input">${storageCaseOpts}</select>
+							<div class="label">Storage HDD</div>
+							<select id="addNewStorageHdd" class="detail-input">${storageHddOpts}</select>
+							<div class="label">Storage Size</div>
+							<input id="addNewStorageSize" class="detail-input" type="text" placeholder="e.g. 3.5" />
+						</div>
+						<div style="margin-top:14px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+							<button id="addNewSaveBtn" class="btn primary">Save</button>
+							<button id="addNewCancelBtn" class="btn">Cancel</button>
+							<span id="addNewStatus" style="font-size:12px;color:var(--muted);"></span>
+						</div>
+					</div>
+				</div>
+			`;
+			wireAddNewPanel();
+		}
+
+		function wireAddNewPanel() {
+			const browseBtn     = document.getElementById('addNewBrowseBtn');
+			const fileBrowse    = document.getElementById('addNewFileBrowse');
+			const filenameInput = document.getElementById('addNewFilename');
+			const titleInput    = document.getElementById('addNewTitle');
+			const yearInput     = document.getElementById('addNewYear');
+			const movieTypeSel  = document.getElementById('addNewMovieType');
+			const resolutionSel = document.getElementById('addNewResolution');
+			const qualitySel    = document.getElementById('addNewQuality');
+			const storageCaseSel = document.getElementById('addNewStorageCase');
+			const storageHddSel = document.getElementById('addNewStorageHdd');
+			const storageSizeInput = document.getElementById('addNewStorageSize');
+			const saveBtn       = document.getElementById('addNewSaveBtn');
+			const cancelBtn     = document.getElementById('addNewCancelBtn');
+			const statusEl      = document.getElementById('addNewStatus');
+
+			function applyParsed(filename, force = false) {
+				const parsed = parseFilenameForForm(filename);
+				if (force || !titleInput.value)    titleInput.value    = parsed.title;
+				if (force || !yearInput.value)     yearInput.value     = parsed.year;
+				if (resolutionSel && parsed.resolution) {
+					const match = [...resolutionSel.options].find(
+						o => o.value.toLowerCase() === parsed.resolution.toLowerCase()
+					);
+					if (match) resolutionSel.value = match.value;
+				}
+				if (qualitySel && parsed.quality) qualitySel.value = parsed.quality;
+			}
+
+			if (browseBtn && fileBrowse) {
+				browseBtn.addEventListener('click', () => fileBrowse.click());
+				fileBrowse.addEventListener('change', () => {
+					const file = fileBrowse.files[0];
+					if (!file) return;
+					const filenameNoExt = file.name.replace(/\.[^.]+$/, '');
+					filenameInput.value = filenameNoExt;
+					// Force-fill all parsed fields when a file is chosen
+					titleInput.value = '';
+					yearInput.value  = '';
+					applyParsed(filenameNoExt, true);
+				});
+			}
+
+			if (filenameInput) {
+				// Auto-fill empty fields when user manually types/pastes a filename and leaves
+				filenameInput.addEventListener('change', () => {
+					applyParsed(filenameInput.value, false);
+				});
+			}
+
+			if (movieTypeSel) {
+				movieTypeSel.addEventListener('change', () => {
+					applyMovieTypeStorageRuleToInputs(movieTypeSel.value, storageCaseSel, storageHddSel);
+				});
+			}
+
+			if (cancelBtn) {
+				cancelBtn.addEventListener('click', () => {
+					state.isAddingNew = false;
+					el.detailsContainer.innerHTML = statusMarkup(t('details.selectPrompt'));
+					updateDetailsActionButtons();
+				});
+			}
+
+			if (saveBtn) {
+				saveBtn.addEventListener('click', async () => {
+					const filename = filenameInput?.value.trim() || '';
+					const title    = titleInput?.value.trim()    || '';
+					if (!title && !filename) {
+						statusEl.textContent  = 'Please enter a title or filename.';
+						statusEl.style.color  = '#ef4444';
+						return;
+					}
+					statusEl.textContent = 'Saving\u2026';
+					statusEl.style.color = 'var(--muted)';
+					saveBtn.disabled     = true;
+
+					const payload = {
+						filename,
+						title,
+						year:         yearInput?.value.trim()                                    || '',
+						'Movie Type': document.getElementById('addNewMovieType')?.value          || '',
+						resolution:   resolutionSel?.value                                       || '',
+						Quality:      qualitySel?.value                                          || '',
+						storageCase:  document.getElementById('addNewStorageCase')?.value        || '',
+						storageHdd:   document.getElementById('addNewStorageHdd')?.value         || '',
+						storageSize:  storageSizeInput?.value.trim()                              || '',
+					};
+
+					try {
+						const result    = await callApi('/api/addMovie', 'POST', payload);
+						state.isAddingNew = false;
+						applyBackendPayload(result);
+
+						// Select the newly added movie and navigate to its page.
+						if (result.newDocId) {
+							const parts      = result.newDocId.split('_');
+							const newRowIdx  = parseInt(parts[parts.length - 1], 10);
+							const newItem    = state.movies.find(m => Number(m.rowIndex) === newRowIdx);
+							if (newItem) {
+								state.searchTerm = '';
+								if (el.searchInput) el.searchInput.value = '';
+								if (el.suggestionsDropdown) el.suggestionsDropdown.classList.remove('show');
+								applyFilterAndRender(true, false);
+
+								const pageSize = state.viewMode === 'grid' ? GRID_PAGE_SIZE : LIST_PAGE_SIZE;
+								const itemIdx  = state.filtered.findIndex(i => Number(i.rowIndex) === newRowIdx && i.sheetType === 'movies');
+								if (itemIdx >= 0) state.page = Math.floor(itemIdx / pageSize) + 1;
+								selectItemByKey(newItem.key, { focusContainer: true });
+							}
+						}
+					} catch (error) {
+						statusEl.textContent = error.message || 'Failed to save.';
+						statusEl.style.color = '#ef4444';
+						saveBtn.disabled     = false;
+					}
+				});
+			}
+		}
+
+		function refreshSelectedItemCard(item) {
+			const selectedNode = Array.from(el.itemsContainer.querySelectorAll('.item'))
+				.find(node => node.dataset.key === item.key);
+			if (!selectedNode) return;
+
+			const titleEl = selectedNode.querySelector('.item-title');
+			if (titleEl) titleEl.textContent = item.title || '';
+
+			if (state.viewMode === 'grid') {
+				const metaEl = selectedNode.querySelector('.grid-info .item-meta');
+				if (metaEl) metaEl.textContent = `${item.year || t('values.dash')} • ${item.resolution || t('values.notAvailable')}`;
+				const poster = selectedNode.querySelector('.grid-poster');
+				if (poster && item.poster) {
+					poster.setAttribute('data-poster-url', item.poster);
+					poster.setAttribute('data-imdb-id', item.imdbId || '');
+					poster.className = 'grid-poster placeholder poster-loading';
+					poster.textContent = t('poster.loading');
+					loadGridPosters();
+				}
+			} else {
+				const infoCol = selectedNode.querySelector('div');
+				const infoMetaRows = infoCol ? infoCol.querySelectorAll('.item-meta') : [];
+				const summaryMeta = infoMetaRows.length ? infoMetaRows[infoMetaRows.length - 1] : null;
+				if (summaryMeta) {
+					summaryMeta.textContent = `${item.language || t('values.unknown')} • ${item.resolution || t('values.notAvailable')} • ${item.year || t('values.dash')}`;
+				}
+				const hddMeta = selectedNode.querySelector(':scope > .item-meta');
+				if (hddMeta) hddMeta.textContent = item.storageHdd || t('values.dash');
+				const poster = selectedNode.querySelector('.list-poster');
+				if (poster && item.poster) {
+					poster.setAttribute('data-poster-url', item.poster);
+					poster.setAttribute('data-imdb-id', item.imdbId || '');
+					poster.className = 'list-poster placeholder poster-loading';
+					poster.textContent = t('poster.loading');
+					loadListPosters();
+				}
+			}
+		}
+
+		async function renderDetails() {
+			if (state.isAddingNew) return;
+			const item = getSelectedItem();
+			if (!item) {
+				el.detailsContainer.innerHTML = statusMarkup(t('details.selectPrompt'));
+				updateDetailsActionButtons();
+				return;
+			}
+
+			const selectedKeyAtStart = item.key;
+			const hasPoster = !!(item.poster || item.imdbId);
+			const effectiveImdbId = getEffectiveImdbId(item);
+			const metadataCollapsed = state.isMetadataCollapsed;
+			const plotText = getPlotFromItem(item);
+
+			// Render card immediately; poster slot shows shimmer if URL exists
+			const posterSlot = hasPoster
+				? `<div id="posterWrap" class="poster placeholder poster-loading">${escapeHtml(t('poster.loadingPoster'))}</div>`
+				: `<div id="posterWrap" class="poster placeholder">${escapeHtml(t('poster.noPoster'))}</div>`;
+
+			const valueCell = (field, fallback = t('values.dash')) => {
+				if (field === 'language') {
+					return `<div>${escapeHtml(getDisplayLanguage(item))}</div>`;
+				}
+				if (!state.isEditingDetails) {
+					let display = item[field] || fallback;
+					return `<div>${escapeHtml(display)}</div>`;
+				}
+				if (field === 'Movie Type') {
+					const opts = ['EN','HN','AN','FN','RG','DC','3D'].map(o =>
+						`<option value="${o}"${item[field] === o ? ' selected' : ''}>${o}</option>`
+					).join('');
+					return `<select class="detail-input" data-edit-field="Movie Type">${opts}</select>`;
+				}
+				if (field === 'resolution') {
+					const opts = ['1080p', '720p', '2160p', 'SD'].map(option =>
+						`<option value="${option}"${item[field] === option ? ' selected' : ''}>${option}</option>`
+					).join('');
+					return `<select class="detail-input" data-edit-field="resolution">${opts}</select>`;
+				}
+				if (field === 'Quality') {
+					const current = normalize(item[field]).toLowerCase();
+					const opts = ['', 'hevc', 'x264'].map(option => {
+						const label = option || '-';
+						return `<option value="${option}"${current === option ? ' selected' : ''}>${label}</option>`;
+					}).join('');
+					return `<select class="detail-input" data-edit-field="Quality">${opts}</select>`;
+				}
+				if (field === 'storageHdd') {
+					const opts = ['M01', 'M03', 'M04', 'M05', 'M06', 'M09', 'M10'].map(option =>
+						`<option value="${option}"${item[field] === option ? ' selected' : ''}>${option}</option>`
+					).join('');
+					return `<select class="detail-input" data-edit-field="storageHdd">${opts}</select>`;
+				}
+				if (field === 'storageCase') {
+					const opts = ['MS1', 'MS2', 'MS3', 'MS4', 'MS5'].map(option =>
+						`<option value="${option}"${item[field] === option ? ' selected' : ''}>${option}</option>`
+					).join('');
+					return `<select class="detail-input" data-edit-field="storageCase">${opts}</select>`;
+				}
+				return `<input class="detail-input" data-edit-field="${field}" value="${escapeHtml(item[field] || '')}" />`;
+			};
+
+			el.detailsContainer.innerHTML = `
+				<div class="detail-card">
+					<div class="poster-column">
+						${posterSlot}
+					</div>
+					<div class="detail-content">
+						<h2 class="detail-title">${escapeHtml(item.title)}</h2>
+						<div class="detail-grid">
+							<div class="label">${escapeHtml(t('details.yearOfRelease'))}</div>${valueCell('year')}
+							<div class="label">${escapeHtml(t('details.filename'))}</div>${valueCell('filename')}
+							<div class="label">${escapeHtml(t('details.movieType'))}</div>${valueCell('Movie Type')}
+							<div class="label">${escapeHtml(t('details.resolution'))}</div>${valueCell('resolution')}
+							<div class="label">${escapeHtml(t('details.quality'))}</div>${valueCell('Quality')}
+							<div class="label">${escapeHtml(t('details.language'))}</div>${valueCell('language')}
+							<div class="label">${escapeHtml(t('details.storageCase'))}</div>${valueCell('storageCase')}
+							<div class="label">${escapeHtml(t('details.storageHdd'))}</div>${valueCell('storageHdd')}
+							<div class="label">${escapeHtml(t('details.storageSize'))}</div>${valueCell('storageSize')}
+							<div class="label">${escapeHtml(t('details.myRating'))}</div>${valueCell('myRating')}
+							<div class="label">${escapeHtml(t('details.imdbRating'))}</div><div>${(() => {
+								const meta = getMetadataObject(item);
+								const rating = meta && meta.imdbRating && meta.imdbRating !== 'N/A' ? meta.imdbRating : null;
+								const votes = meta && meta.imdbVotes && meta.imdbVotes !== 'N/A' ? meta.imdbVotes : null;
+								if (rating && votes) return escapeHtml(rating + ' / ' + votes);
+								if (rating) return escapeHtml(rating);
+								return escapeHtml(t('values.dash'));
+							})()}</div>
+						</div>
+					</div>
+					<div class="plot-section">
+						<div class="detail-side-label">${escapeHtml(t('details.plot'))}</div>
+						${state.isEditingDetails
+							? `<textarea class="plot-input" data-edit-field="plot" placeholder="${escapeHtml(t('details.enterPlot'))}">${escapeHtml(plotText)}</textarea>`
+							: `<div class="plot-text">${escapeHtml(plotText || t('details.noPlot'))}</div>`}
+					</div>
+					<div class="api-details-row">
+						<div class="metadata-header">
+							<div class="detail-side-label">${escapeHtml(t('details.metadata'))}</div>
+							<button id="toggleMetadataBtn" class="btn">${escapeHtml(metadataCollapsed ? t('details.showMetadata') : t('details.hideMetadata'))}</button>
+						</div>
+						${metadataCollapsed
+							? `<div class="item-meta">${escapeHtml(t('details.metadataCollapsed'))}</div>`
+							: (item.metadataJson ? `<pre class="json-block">${escapeHtml(item.metadataJson)}</pre>` : `<div class="item-meta">${escapeHtml(t('details.noMetadata'))}</div>`)}
+						<div class="metadata-editor">
+							<input id="metadataImdbInput" type="text" value="${escapeHtml(effectiveImdbId)}" placeholder="${escapeHtml(t('details.imdbPlaceholder'))}" />
+							<button id="fetchMetadataBtn" class="btn">${escapeHtml(t('details.fetchLatest'))}</button>
+						</div>
+						<div id="metadataStatus" class="metadata-status">${state.hasUnsavedChanges ? escapeHtml(t('details.unsavedChanges')) : ''}</div>
+					</div>
+				</div>
+			`;
+
+			if (state.isEditingDetails) {
+				el.detailsContainer.querySelectorAll('[data-edit-field]').forEach(input => {
+					const field = input.getAttribute('data-edit-field');
+					if (field === 'Movie Type') {
+						input.addEventListener('change', (e) => {
+							const nextValue = e.target.value;
+							onDetailFieldInput(item, 'Movie Type', nextValue);
+							const storageCaseInput = el.detailsContainer.querySelector('[data-edit-field="storageCase"]');
+							const storageHddInput = el.detailsContainer.querySelector('[data-edit-field="storageHdd"]');
+							if (applyMovieTypeStorageRuleToInputs(nextValue, storageCaseInput, storageHddInput)) {
+								onDetailFieldInput(item, 'storageCase', storageCaseInput?.value || '');
+								onDetailFieldInput(item, 'storageHdd', storageHddInput?.value || '');
+							}
+						});
+						return;
+					}
+					const handler = (e) => {
+						onDetailFieldInput(item, field, e.target.value);
+					};
+					input.addEventListener('input', handler);
+					input.addEventListener('change', handler);
+				});
+			}
+
+			// Kick off async poster load + cache (does not block UI)
+			if (hasPoster) {
+				loadAndCachePoster(item.poster, selectedKeyAtStart, item.imdbId);
+			}
+
+			wireMetadataActions(item);
+			updateDetailsActionButtons();
+		}
+
+		function beginPageLock() {
+			const lock = {
+				page: state.page,
+				selectedKey: state.selectedKey
+			};
+			state.pageLock = lock;
+			return lock;
+		}
+
+		function restorePageLock(lock = state.pageLock) {
+			if (!lock) return;
+			const pages = totalPages();
+			state.page = Math.min(Math.max(1, lock.page), pages);
+			state.selectedKey = lock.selectedKey;
+		}
+
+		function endPageLock(lock = state.pageLock) {
+			if (!lock) return;
+			if (state.pageLock === lock) {
+				state.pageLock = null;
+			}
+		}
+
+		function setActiveTab(tab) {
+			state.isAddingNew = false;
+			state.activeTab = tab;
+			state.searchTerm = '';
+			el.searchInput.value = '';
+			state.isMetadataCollapsed = true;
+			state.selectedKey = null;
+			state.selectedItemKeys.clear();
+
+			el.tabMovies.classList.toggle('active', tab === 'movies');
+			el.tabSeries.classList.toggle('active', tab === 'series');
+
+			applyFilterAndRender(true);
+		}
+
+		function setViewMode(mode) {
+			state.viewMode = mode;
+			localStorage.setItem(UI_VIEW_MODE_STORAGE_KEY, mode);
+			el.listViewBtn.classList.toggle('primary', mode === 'list');
+			el.gridViewBtn.classList.toggle('primary', mode === 'grid');
+			render();
+			renderDetails();
+		}
+
+		function bindEvents() {
+			document.addEventListener('keydown', event => {
+				if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) return;
+				if (state.isEditingDetails || isInteractiveElement(event.target)) return;
+				if (moveSelectionWithArrow(event.key)) {
+					event.preventDefault();
+				}
+			});
+
+			el.tabMovies.addEventListener('click', () => setActiveTab('movies'));
+			el.tabSeries.addEventListener('click', () => setActiveTab('series'));
+
+			if (el.fetchAllMetadataBtn) {
+				el.fetchAllMetadataBtn.addEventListener('click', async () => {
+					await fetchAllMissingMetadataForSelectedOnPage();
+				});
+			}
+
+			if (el.deleteSelectedBtn) {
+				el.deleteSelectedBtn.addEventListener('click', async () => {
+					await deleteSelectedItemsOnCurrentPage();
+				});
+			}
+
+			if (el.addMovieBtn) {
+				el.addMovieBtn.addEventListener('click', () => {
+					if (state.activeTab !== 'movies') return;
+					state.isAddingNew    = true;
+					state.selectedKey    = null;
+					state.isEditingDetails = false;
+					renderAddNewPanel();
+					updateDetailsActionButtons();
+				});
+			}
+
+			if (el.selectAllPageBtn) {
+				el.selectAllPageBtn.addEventListener('click', () => {
+					selectAllItemsOnCurrentPage();
+				});
+			}
+
+			el.listViewBtn.addEventListener('click', () => setViewMode('list'));
+			el.gridViewBtn.addEventListener('click', () => setViewMode('grid'));
+
+			el.detailEditBtn.addEventListener('click', () => {
+				if (!getSelectedItem()) return;
+				setEditMode(true);
+			});
+
+			el.detailSaveBtn.addEventListener('click', async () => {
+				flushDetailFormEdits();
+				if (!state.hasUnsavedChanges) return;
+				const pageLock = beginPageLock();
+				state.suppressNextPageReset = true;
+				try {
+					await saveWorkbookToFile({
+						preservedPage: pageLock.page,
+						preservedSelection: pageLock.selectedKey
+					});
+					restorePageLock(pageLock);
+					render();
+					renderDetails();
+				} finally {
+					endPageLock(pageLock);
+					setTimeout(() => { state.suppressNextPageReset = false; }, 0);
+				}
+			});
+
+			el.detailCancelBtn.addEventListener('click', async () => {
+				if (state.hasUnsavedChanges) {
+					const ok = confirm(t('confirm.discardUnsaved'));
+					if (!ok) return;
+					await loadWorkbook();
+				}
+				state.isEditingDetails = false;
+				updateDetailsActionButtons();
+				renderDetails();
+			});
+
+			el.searchInput.addEventListener('input', () => {
+				generateSuggestions(el.searchInput.value);
+			});
+
+			el.searchInput.addEventListener('keydown', event => {
+				if (event.key === 'ArrowDown' && state.suggestions.length) {
+					event.preventDefault();
+					state.activeSuggestionIndex = Math.min(state.activeSuggestionIndex + 1, state.suggestions.length - 1);
+					renderSuggestions();
+				} else if (event.key === 'ArrowUp' && state.suggestions.length) {
+					event.preventDefault();
+					state.activeSuggestionIndex = Math.max(state.activeSuggestionIndex - 1, -1);
+					renderSuggestions();
+				} else if (event.key === 'Enter') {
+					if (state.activeSuggestionIndex >= 0 && state.suggestions.length) {
+						el.searchInput.value = state.suggestions[state.activeSuggestionIndex];
+						state.searchTerm = el.searchInput.value;
+						el.suggestionsDropdown.classList.remove('show');
+						applyFilterAndRender(true);
+					} else {
+						state.searchTerm = el.searchInput.value;
+						el.suggestionsDropdown.classList.remove('show');
+						applyFilterAndRender(true);
+					}
+				} else if (event.key === 'Escape') {
+					el.suggestionsDropdown.classList.remove('show');
+				}
+			});
+
+			el.searchBtn.addEventListener('click', () => {
+				state.searchTerm = el.searchInput.value;
+				el.suggestionsDropdown.classList.remove('show');
+				applyFilterAndRender(true);
+			});
+
+			el.clearBtn.addEventListener('click', () => {
+				state.searchTerm = '';
+				el.searchInput.value = '';
+				el.suggestionsDropdown.classList.remove('show');
+				applyFilterAndRender(true);
+			});
+
+			// Hide suggestions when clicking outside
+			document.addEventListener('click', (e) => {
+				if (e.target !== el.searchInput && !el.suggestionsDropdown.contains(e.target)) {
+					el.suggestionsDropdown.classList.remove('show');
+				}
+			});
+
+			el.firstBtn.addEventListener('click', () => {
+				navigateToPage(1);
+			});
+
+			el.prevBtn.addEventListener('click', () => {
+				navigateToPage(state.page - 1);
+			});
+
+			el.nextBtn.addEventListener('click', () => {
+				navigateToPage(state.page + 1);
+			});
+
+			el.lastBtn.addEventListener('click', () => {
+				navigateToPage(totalPages());
+			});
+
+			const jumpToTypedPage = () => {
+				const pages = totalPages();
+				const raw = Number(el.gotoPageInput.value || 0);
+				if (!raw || Number.isNaN(raw)) return;
+				navigateToPage(Math.min(Math.max(1, Math.floor(raw)), pages));
+			};
+
+			el.itemsContainer.addEventListener('wheel', (event) => {
+				const pages = totalPages();
+				if (pages <= 1) return;
+				if (Math.abs(event.deltaY) < Math.abs(event.deltaX) || Math.abs(event.deltaY) < 8) return;
+
+				const delta = event.deltaY > 0 ? 1 : -1;
+				const target = Math.min(Math.max(1, state.page + delta), pages);
+				if (target === state.page) return;
+
+				const now = Date.now();
+				if (now - state.lastWheelPageNavAt < 220) {
+					event.preventDefault();
+					return;
+				}
+
+				state.lastWheelPageNavAt = now;
+				event.preventDefault();
+				navigateToPage(target);
+			}, { passive: false });
+
+			el.gotoPageBtn.addEventListener('click', jumpToTypedPage);
+			el.gotoPageInput.addEventListener('keydown', (event) => {
+				if (event.key === 'Enter') {
+					event.preventDefault();
+					jumpToTypedPage();
+				}
+			});
+		}
+
+		async function initApp() {
+			try {
+				console.log('Starting app initialization...');
+				await waitForBackendReady();
+				await loadUiResources();
+				applyStaticStrings();
+				bindEvents();
+				el.listViewBtn.classList.toggle('primary', state.viewMode === 'list');
+				el.gridViewBtn.classList.toggle('primary', state.viewMode === 'grid');
+				updateDetailsActionButtons();
+				console.log('Backend ready, loading workbook...');
+				await loadWorkbook();
+				console.log('Workbook loaded successfully');
+			} catch (error) {
+				const msg = error?.message || String(error) || t('status.unknownInitError');
+				console.error('Init error:', msg, error);
+				el.itemsContainer.innerHTML = `<div class="status" style="color: #ef4444; padding: 20px; white-space: pre-wrap; word-break: break-word; font-family: monospace; font-size: 12px;">${escapeHtml(t('status.errorPrefix', { message: msg }))}</div>`;
+				el.countInfo.textContent = t('collection.zeroItems');
+			}
+		}
+
+		initApp();
+	</script>
+</body>
+</html>

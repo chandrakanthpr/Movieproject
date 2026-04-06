@@ -1,0 +1,166 @@
+{
+  "ui": {
+    "document": {
+      "title": "Movie Collection Viewer"
+    },
+    "tabs": {
+      "movies": "Movies",
+      "series": "Series"
+    },
+    "source": {
+      "initializingBadge": "Source: Initializing...",
+      "firebase": "Firebase",
+      "offline": "Offline",
+      "initializing": "Initializing..."
+    },
+    "search": {
+      "placeholder": "Elastic search title, year, language, resolution, metadata...",
+      "search": "Search",
+      "clear": "Clear"
+    },
+    "api": {
+      "errorWithText": "API error: {status} - {text}",
+      "invalidJson": "Invalid JSON response from server",
+      "errorStatus": "API error: {status}"
+    },
+    "moviesPanel": {
+      "title": "Movies",
+      "selectAll": "Select All",
+      "fetchAll": "Fetch",
+      "delete": "Delete",
+      "countLoading": "Loading..."
+    },
+    "view": {
+      "list": "List",
+      "icons": "Icons"
+    },
+    "collection": {
+      "ariaLabel": "Collection items",
+      "zeroItems": "0 items",
+      "countSingular": "{count} item",
+      "countPlural": "{count} items",
+      "noItemsFound": "No items found.",
+      "selectAria": "Select {name}"
+    },
+    "pagination": {
+      "first": "First",
+      "previous": "Previous",
+      "pageInfo": "Page {page} / {pages}",
+      "goTo": "Go to",
+      "pagePlaceholder": "Page",
+      "go": "Go",
+      "next": "Next",
+      "last": "Last"
+    },
+    "details": {
+      "title": "Details",
+      "edit": "Edit",
+      "save": "Save",
+      "cancel": "Cancel",
+      "selectPrompt": "Select a movie to view details.",
+      "yearOfRelease": "Year of release",
+      "filename": "Filename",
+      "movieType": "Movie Type",
+      "resolution": "Resolution",
+      "quality": "Quality",
+      "language": "Language",
+      "storageCase": "Storage Case",
+      "storageHdd": "Storage HDD",
+      "storageSize": "Storage Size",
+      "myRating": "My Rating",
+      "imdbRating": "IMDb Rating",
+      "plot": "Plot",
+      "metadata": "Metadata",
+      "showMetadata": "Show Metadata",
+      "hideMetadata": "Hide Metadata",
+      "metadataCollapsed": "Metadata collapsed.",
+      "noMetadata": "No metadata available.",
+      "imdbPlaceholder": "Enter IMDb ID (e.g. tt0111161)",
+      "fetchLatest": "Fetch Latest",
+      "unsavedChanges": "Unsaved changes",
+      "enterPlot": "Enter plot...",
+      "noPlot": "No plot available."
+    },
+    "save": {
+      "savedToFirebase": "Saved to Firebase ✓",
+      "savedToDisk": "Firebase unavailable — saved to local file instead.\nChanges will sync to Firebase next time a connection is available.",
+      "completed": "Save completed.",
+      "failed": "Save failed."
+    },
+    "fetchAll": {
+      "switchToMovies": "Switch to Movies to use batch fetch.",
+      "ready": "{count} selected item(s) ready.",
+      "fetching": "Fetching {count} item(s)...",
+      "complete": "Fetch all complete. Success: {success}, Failed: {failed}."
+    },
+    "fetch": {
+      "missingInput": "Please enter an IMDb ID or use a filename like Movie.Name[2021].",
+      "fetchingOmdb": "Fetching metadata from OMDb...",
+      "fetchingFor": "Fetching metadata for {title}{yearSuffix}...",
+      "savingWithId": "Saving latest metadata ({imdbId})...",
+      "savingFor": "Saving latest metadata for {title}{yearSuffix}...",
+      "refreshed": "Metadata refreshed and saved.",
+      "failed": "Metadata fetch failed."
+    },
+    "delete": {
+      "confirm": "Delete {count} selected item(s) on this page?",
+      "deleting": "Deleting {count} item(s)...",
+      "complete": "Deleted {count} item(s).",
+      "failed": "Delete failed."
+    },
+    "poster": {
+      "loading": "Loading...",
+      "loadingPoster": "Loading poster...",
+      "noPoster": "No Poster",
+      "corsError": "CORS Error"
+    },
+    "values": {
+      "unknown": "Unknown",
+      "notAvailable": "N/A",
+      "dash": "-"
+    },
+    "status": {
+      "errorPrefix": "ERROR: {message}",
+      "unknownLoadError": "Unknown error loading workbook",
+      "unknownInitError": "Unknown error during initialization"
+    },
+    "confirm": {
+      "discardUnsaved": "Discard all pending unsaved edits?"
+    },
+    "backend": {
+      "notResponding": "Backend server not responding. Make sure to run: python Backend/server.py"
+    }
+  },
+  "backend": {
+    "resources": {
+      "unsupportedLanguage": "Unsupported language: {language}",
+      "missingFile": "Resource file not found: {path}"
+    },
+    "health": {
+      "status": "ok",
+      "firebaseReachable": "reachable",
+      "firebaseUnreachable": "unreachable"
+    },
+    "seed": {
+      "invalidMeta": "Invalid seed: no meta entry"
+    },
+    "omdb": {
+      "apiKeyRequired": "OMDb API key is required.",
+      "inputRequired": "Please enter an IMDb ID or provide a filename that includes title and year.",
+      "dailyLimitReached": "Daily OMDb limit reached for key {index}/{count}.",
+      "requestFailed": "OMDb request failed.",
+      "requestFailedWithStatus": "OMDb request failed ({status}).",
+      "notFoundById": "OMDb could not find this IMDb ID.",
+      "notFoundByTitle": "OMDb could not find this title.",
+      "allKeysUnavailable": "All OMDb keys are exhausted or unavailable.",
+      "apiKeyBodyRequired": "OMDb API key is required. Provide 'omdbApiKey' in request body.",
+      "endpointInputRequired": "Please enter an IMDb ID or use a filename like Movie.Name[2021]."
+    },
+    "enrich": {
+      "noneEnriched": "No missing metadata entries were enriched."
+    },
+    "firestore": {
+      "unreachable": "Firestore unreachable: {error}"
+    }
+  }
+}
