@@ -937,12 +937,23 @@ def load_workbook():
             firebase_available = False
             fs_meta, fs_items  = None, []
 
-        # -- Merge (Firestore wins) -----------------------------------------
-        effective_meta = (fs_meta or seed_meta) if firebase_available else seed_meta
+        # -- Merge (Firestore wins per field, but preserve seed defaults) ----
+        # NOTE:
+        # If Firestore meta exists but doesn't include series sheet settings,
+        # using fs_meta directly can hide all seed series rows in the UI.
+        # So we merge meta field-by-field with seed as fallback.
+        effective_meta = ({**seed_meta, **(fs_meta or {})} if firebase_available else dict(seed_meta))
         merged         = dict(seed_items)                    # seed is the base
         for entry in fs_items:                               # Firestore overrides
             if entry.get("id") and entry.get("data"):
                 merged[entry["id"]] = entry["data"]
+
+        # Ensure series sheet metadata stays enabled when any series items exist.
+        has_series_items = any((it or {}).get("sheetType") == "series" for it in merged.values())
+        if has_series_items and not str(effective_meta.get("seriesSheetName", "")).strip():
+            effective_meta["seriesSheetName"] = str(seed_meta.get("seriesSheetName") or "series")
+            if not effective_meta.get("seriesHeaderRow") and seed_meta.get("seriesHeaderRow"):
+                effective_meta["seriesHeaderRow"] = seed_meta.get("seriesHeaderRow")
 
         rows        = rows_from_items(effective_meta, list(merged.values()))
         loaded_from = "firebase" if firebase_available else "nosql-seed"

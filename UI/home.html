@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Movie Collection Home</title>
+    <style>
+      :root {
+        --bg1: #020617;
+        --bg2: #0f172a;
+        --panel: #111827;
+        --border: #374151;
+        --text: #e5e7eb;
+        --muted: #94a3b8;
+        --primary: #22c55e;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        font-family:
+          Segoe UI,
+          Arial,
+          sans-serif;
+        background: linear-gradient(
+          140deg,
+          var(--bg1) 0%,
+          var(--bg2) 50%,
+          #111827 100%
+        );
+        color: var(--text);
+        padding: 20px;
+      }
+      .card {
+        width: min(760px, 100%);
+        background: rgba(17, 24, 39, 0.9);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 24px;
+      }
+      h1 {
+        margin: 0 0 8px;
+        font-size: 28px;
+      }
+      p {
+        margin: 0 0 18px;
+        color: var(--muted);
+      }
+      .links {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 12px;
+      }
+      a {
+        text-decoration: none;
+        color: #062b14;
+        background: var(--primary);
+        border: 1px solid #16a34a;
+        font-weight: 700;
+        border-radius: 10px;
+        padding: 12px 14px;
+        text-align: center;
+        display: block;
+      }
+      .secondary {
+        background: #111827;
+        color: var(--text);
+        border-color: var(--border);
+      }
+    </style>
+  </head>
+  <body>
+    <main class="card">
+      <h1>Movie Collection</h1>
+      <p>Choose a page.</p>
+      <div class="links">
+        <a href="movies.html">Open Movies</a>
+        <a href="series.html">Open Series</a>
+        <a href="UI.html" class="secondary">Open Combined UI</a>
+      </div>
+    </main>
+  </body>
+</html>
