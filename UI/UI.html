@@ -132,6 +132,23 @@
         font-size: 12px;
       }
 
+      .search-option {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 11px;
+        color: var(--muted);
+        user-select: none;
+        white-space: nowrap;
+      }
+
+      .search-option input {
+        width: 14px;
+        height: 14px;
+        accent-color: var(--primary);
+        cursor: pointer;
+      }
+
       #suggestionsDropdown {
         display: none;
         position: absolute;
@@ -637,6 +654,10 @@
         <span id="dataSourceBadge" class="source-badge"></span>
 
         <div class="search-wrap">
+          <label class="search-option" for="titleOnlyCheckbox">
+            <input id="titleOnlyCheckbox" type="checkbox" />
+            <span id="titleOnlyLabel"></span>
+          </label>
           <input
             id="searchInput"
             type="text"
@@ -760,6 +781,7 @@
         page: getPersistedPage(),
         selectedKey: null,
         searchTerm: "",
+        titleOnlySearch: false,
         posterObjectUrls: new Map(),
         suggestions: [],
         activeSuggestionIndex: -1,
@@ -783,6 +805,8 @@
         listViewBtn: document.getElementById("listViewBtn"),
         gridViewBtn: document.getElementById("gridViewBtn"),
         searchInput: document.getElementById("searchInput"),
+        titleOnlyCheckbox: document.getElementById("titleOnlyCheckbox"),
+        titleOnlyLabel: document.getElementById("titleOnlyLabel"),
         suggestionsDropdown: document.getElementById("suggestionsDropdown"),
         searchBtn: document.getElementById("searchBtn"),
         clearBtn: document.getElementById("clearBtn"),
@@ -852,6 +876,7 @@
         document.title = t("document.title");
         setText(el.tabMovies, t("tabs.movies"));
         setText(el.tabSeries, t("tabs.series"));
+        setText(el.titleOnlyLabel, t("search.titleOnly"));
         setText(el.searchBtn, t("search.search"));
         setText(el.clearBtn, t("search.clear"));
         if (el.searchInput)
@@ -1573,10 +1598,11 @@
         const q = normalizeSearchText(query);
         const source = getActiveData();
         const matched = new Set();
+        const titleOnly = !!state.titleOnlySearch;
 
         // Elastic match against item fields plus metadata keys/values.
         source.forEach((item) => {
-          if (isElasticSearchMatch(q, item)) {
+          if (isElasticSearchMatch(q, item, titleOnly)) {
             matched.add(item.title || item.filename || "");
           }
         });
@@ -1691,6 +1717,10 @@
         return normalizeSearchText(baseFields.concat(metadataTokens).join(" "));
       }
 
+      function buildTitleSearchCorpus(item) {
+        return normalizeSearchText(item?.title || "");
+      }
+
       function isSubsequenceMatch(needle, haystack) {
         if (!needle) return true;
         let j = 0;
@@ -1709,11 +1739,13 @@
         return false;
       }
 
-      function isElasticSearchMatch(query, item) {
+      function isElasticSearchMatch(query, item, titleOnly = false) {
         const normalizedQuery = normalizeSearchText(query);
         if (!normalizedQuery) return true;
 
-        const corpus = buildSearchCorpus(item);
+        const corpus = titleOnly
+          ? buildTitleSearchCorpus(item)
+          : buildSearchCorpus(item);
         if (!corpus) return false;
         if (corpus.includes(normalizedQuery)) return true;
 
@@ -1736,10 +1768,11 @@
         }
         const source = getActiveData();
         const q = state.searchTerm.trim();
+        const titleOnly = !!state.titleOnlySearch;
 
         state.filtered = !q
           ? [...source]
-          : source.filter((item) => isElasticSearchMatch(q, item));
+          : source.filter((item) => isElasticSearchMatch(q, item, titleOnly));
 
         if (resetPage) {
           state.page = 1;
@@ -3005,6 +3038,15 @@
         el.searchInput.addEventListener("input", () => {
           generateSuggestions(el.searchInput.value);
         });
+
+        if (el.titleOnlyCheckbox) {
+          state.titleOnlySearch = !!el.titleOnlyCheckbox.checked;
+          el.titleOnlyCheckbox.addEventListener("change", () => {
+            state.titleOnlySearch = !!el.titleOnlyCheckbox.checked;
+            generateSuggestions(el.searchInput.value);
+            applyFilterAndRender(true);
+          });
+        }
 
         el.searchInput.addEventListener("keydown", (event) => {
           if (event.key === "ArrowDown" && state.suggestions.length) {

@@ -15,6 +15,7 @@
     },
     "search": {
       "placeholder": "Elastic search title, year, language, resolution, metadata...",
+      "titleOnly": "Title",
       "search": "Search",
       "clear": "Clear"
     },
