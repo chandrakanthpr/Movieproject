@@ -1215,6 +1215,17 @@
         return normalize(meta.Plot || meta.plot || "");
       }
 
+      function getDisplayQuality(item) {
+        const explicit = normalize(item?.Quality).toLowerCase();
+        if (explicit) return explicit;
+
+        const filename = normalize(item?.filename);
+        if (!filename) return t("values.dash");
+        if (/\(X5\)|\[X5\]|\bX5\b/i.test(filename)) return "hevc";
+        if (/\bx264\b|\bh264\b/i.test(filename)) return "x264";
+        return t("values.dash");
+      }
+
       function getDisplayLanguage(item) {
         const meta = getMetadataObject(item);
         const metadataLanguage = normalize(
@@ -2871,6 +2882,9 @@
           if (field === "language") {
             return `<div>${escapeHtml(getDisplayLanguage(item))}</div>`;
           }
+          if (field === "Quality" && !state.isEditingDetails) {
+            return `<div>${escapeHtml(getDisplayQuality(item))}</div>`;
+          }
           if (!state.isEditingDetails) {
             let display = item[field] || fallback;
             return `<div>${escapeHtml(display)}</div>`;
@@ -2942,6 +2956,8 @@
         const isMovie = item.sheetType === "movies";
         const yearRow = isMovie ? `
 							<div class="label">${escapeHtml(t("details.yearOfRelease"))}</div>${valueCell("year")}` : "";
+        const seasonRow = !isMovie ? `
+      							<div class="label">Season</div>${valueCell("Season")}` : "";
         const movieTypeRow = isMovie ? `
 							<div class="label">${escapeHtml(t("details.movieType"))}</div>${valueCell("Movie Type")}` : "";
         const qualityRow = `
@@ -2957,7 +2973,7 @@
 					<div class="detail-content">
 						<h2 class="detail-title">${escapeHtml(item.title)}</h2>
 						<div class="detail-grid">${yearRow}
-							<div class="label">${escapeHtml(t("details.filename"))}</div>${valueCell("filename")}${movieTypeRow}
+              <div class="label">${escapeHtml(t("details.filename"))}</div>${valueCell("filename")}${seasonRow}${movieTypeRow}
 							<div class="label">${escapeHtml(t("details.resolution"))}</div>${valueCell("resolution")}${qualityRow}
 							<div class="label">${escapeHtml(t("details.language"))}</div>${valueCell("language")}
 							<div class="label">${escapeHtml(t("details.storageCase"))}</div>${valueCell("storageCase")}

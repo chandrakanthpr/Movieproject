@@ -531,6 +531,12 @@ def parse_rows(rows, sheet_type):
         # Column indices differ between movies and series
         if sheet_type == "series":
             season = extract_season_from_filename(filename)
+            storage_hdd = g(8)
+            # Backward compatibility: some older saves wrote series HDD to col 7.
+            if not storage_hdd:
+                legacy_hdd = g(7)
+                if legacy_hdd and legacy_hdd.lower() not in ("y", "\u2713"):
+                    storage_hdd = legacy_hdd
             # Series header: ID, Title, Folder, Episodes, Res, Case, X5, R, Bkup, Data, ...
             item_data = {
                 "key":          f"{title or filename}__{i}",
@@ -540,11 +546,10 @@ def parse_rows(rows, sheet_type):
                 "rowIndex":     i,
                 "filename":     filename,
                 "year":         g(2),  # Folder
-                "Movie Type":   "",
                 "resolution":   g(4),  # Res
                 "Quality":      quality,
                 "storageCase":  g(5),  # Case
-                "storageHdd":   g(8),  # Bkup
+                "storageHdd":   storage_hdd,  # Bkup
                 "storageSize":  "",
                 "myRating":     "",
                 "imdbId":       imdb_id,
