@@ -750,6 +750,7 @@
       const UI_ACTIVE_TAB_STORAGE_KEY = "movieUiActiveTab";
       const UI_VIEW_MODE_STORAGE_KEY = "movieUiViewMode";
       const UI_PAGE_STORAGE_KEY = "movieUiPage";
+      const UI_TITLE_ONLY_STORAGE_KEY = "movieUiTitleOnly";
 
       function getPersistedActiveTab() {
         if (URL_TAB === "movies" || URL_TAB === "series") return URL_TAB;
@@ -764,6 +765,13 @@
           .trim()
           .toLowerCase();
         return saved === "grid" ? "grid" : "list";
+      }
+
+      function getPersistedTitleOnlySearch() {
+        const saved = (localStorage.getItem(UI_TITLE_ONLY_STORAGE_KEY) || "")
+          .trim()
+          .toLowerCase();
+        return saved === "true" || saved === "1";
       }
 
       function getPersistedPage(tab = null) {
@@ -817,7 +825,7 @@
         page: getPersistedPage(getPersistedActiveTab()),
         selectedKey: null,
         searchTerm: "",
-        titleOnlySearch: false,
+        titleOnlySearch: getPersistedTitleOnlySearch(),
         posterObjectUrls: new Map(),
         suggestions: [],
         activeSuggestionIndex: -1,
@@ -3301,9 +3309,13 @@
         });
 
         if (el.titleOnlyCheckbox) {
-          state.titleOnlySearch = !!el.titleOnlyCheckbox.checked;
+          el.titleOnlyCheckbox.checked = !!state.titleOnlySearch;
           el.titleOnlyCheckbox.addEventListener("change", () => {
             state.titleOnlySearch = !!el.titleOnlyCheckbox.checked;
+            localStorage.setItem(
+              UI_TITLE_ONLY_STORAGE_KEY,
+              state.titleOnlySearch ? "true" : "false",
+            );
             generateSuggestions(el.searchInput.value);
             applyFilterAndRender(true);
           });
