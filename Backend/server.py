@@ -1299,11 +1299,14 @@ def get_firebase_config():
 @app.route("/api/addMovie", methods=["POST"])
 def add_movie():
     """
-    Add a new movie entry to the collection.
-    Body: { filename, title, year, "Movie Type", resolution, Quality, storageCase, storageHdd }
+    Add a new collection entry (movie or series).
+    Body: { sheetType, filename, title, year, "Movie Type", resolution, Quality, storageCase, storageHdd, storageSize, Season }
     """
     try:
         data = request.get_json(silent=True) or {}
+        sheet_type = _normalize_text(data.get("sheetType") or "movies").lower()
+        if sheet_type not in ("movies", "series"):
+            sheet_type = "movies"
 
         seed = seed_load()
         meta_entry, item_entries = seed_parts(seed)
@@ -1311,11 +1314,11 @@ def add_movie():
             return jsonify({"error": _resource_text("backend.seed.invalidMeta", "Invalid seed: no meta entry")}), 400
         seed_meta = meta_entry.get("data", {})
 
-        # Find the highest rowIndex among existing movie items
+        # Find the highest rowIndex among existing items for this sheet type.
         max_row = max(
             (int(e["data"].get("rowIndex", 0) or 0)
              for e in item_entries
-             if e.get("data") and e["data"].get("sheetType") == "movies"),
+             if e.get("data") and e["data"].get("sheetType") == sheet_type),
             default=0,
         )
         new_row_index = max_row + 1
@@ -1328,24 +1331,31 @@ def add_movie():
             "key":          f"{title or filename}__{new_row_index}",
             "title":        title,
             "titleMissing": not bool(title),
-            "sheetType":    "movies",
+            "sheetType":    sheet_type,
             "rowIndex":     new_row_index,
             "filename":     filename,
             "year":         _normalize_text(data.get("year")),
-            "Movie Type":   _normalize_text(data.get("Movie Type")),
             "resolution":   _normalize_text(data.get("resolution")),
             "Quality":      quality,
             "storageCase":  _normalize_text(data.get("storageCase")),
             "storageHdd":   _normalize_text(data.get("storageHdd")),
-            "storageSize":  _normalize_text(data.get("storageSize")),
             "myRating":     "",
             "imdbId":       "",
             "poster":       "",
             "metadataJson": "",
-            "language":     _normalize_text(data.get("Movie Type")),
         }
 
-        new_doc_id   = make_doc_id("movies", new_row_index)
+        if sheet_type == "movies":
+            new_item["Movie Type"] = _normalize_text(data.get("Movie Type"))
+            new_item["storageSize"] = _normalize_text(data.get("storageSize"))
+            new_item["language"] = _normalize_text(data.get("Movie Type"))
+        else:
+            season = _normalize_text(data.get("Season")) or extract_season_from_filename(filename) or ""
+            new_item["storageSize"] = ""
+            if season:
+                new_item["Season"] = season
+
+        new_doc_id   = make_doc_id(sheet_type, new_row_index)
         updated_meta = {**seed_meta, "updatedAt": datetime.now().isoformat()}
 
         # Try Firestore first
@@ -1360,9 +1370,9 @@ def add_movie():
             fs_batch_write([write_op])
             fs_set_doc(FIRESTORE_META_COL, FIRESTORE_META_DOC_ID, updated_meta)
             firebase_saved = True
-            logger.info(f"Added new movie '{title}' to Firestore as {new_doc_id}")
+            logger.info(f"Added new {sheet_type} '{title}' to Firestore as {new_doc_id}")
         except Exception as ex:
-            logger.warning(f"Firestore save failed for new movie; using local seed. ({ex})")
+            logger.warning(f"Firestore save failed for new {sheet_type}; using local seed. ({ex})")
 
         # Always update local seed
         all_seed_entries = list(item_entries) + [{"id": new_doc_id, "data": new_item}]

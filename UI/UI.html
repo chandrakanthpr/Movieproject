@@ -2584,31 +2584,52 @@
         }
       }
 
-      // ── Add New Movie helpers ──────────────────────────────────────────────
+      // ── Add New Item helpers ───────────────────────────────────────────────
 
-      function parseFilenameForForm(filename) {
+      function parseMovieFilenameForForm(filename) {
         if (!filename)
           return { title: "", year: "", resolution: "", quality: "" };
         const basename =
           filename.replace(/\\/g, "/").split("/").pop() || filename;
-        // Strip file extension for bracket parsing
         const nameNoExt = basename.replace(/\.[^.[]+$/, "");
-        // Title: everything before first '[', replace dots with spaces
         const bracketIdx = nameNoExt.indexOf("[");
         let titlePart =
           bracketIdx >= 0 ? nameNoExt.slice(0, bracketIdx) : nameNoExt;
         titlePart = titlePart.replace(/\./g, " ").replace(/\s+/g, " ").trim();
-        // Collect all bracketed segments
         const allBrackets = [...nameNoExt.matchAll(/\[([^\]]*)\]/g)];
         const year = allBrackets.length >= 1 ? allBrackets[0][1].trim() : "";
         const resolution =
           allBrackets.length >= 2 ? allBrackets[1][1].trim() : "";
-        // Quality: [X5] present → hevc, otherwise → x264
         const quality = /\[X5\]/i.test(nameNoExt) ? "hevc" : "x264";
         return { title: titlePart, year, resolution, quality };
       }
 
+      function parseSeriesFolderForForm(folderName) {
+        const raw = normalize(folderName);
+        if (!raw)
+          return { title: "", season: "", resolution: "", quality: "x264" };
+
+        const name = raw.replace(/[\\/]+/g, " ").trim();
+        const seasonMatch = name.match(/\bS\d+\b/i);
+        const resolutionMatch = name.match(/\((\d{3,4}p|SD)\)/i);
+        const quality = /\(X5\)|\[X5\]|\bX5\b/i.test(name) ? "hevc" : "x264";
+
+        let titlePart = name;
+        if (seasonMatch && seasonMatch.index >= 0) {
+          titlePart = name.slice(0, seasonMatch.index);
+        } else {
+          const idx = name.indexOf("(");
+          if (idx > 0) titlePart = name.slice(0, idx);
+        }
+
+        const title = titlePart.replace(/[._-]+/g, " ").replace(/\s+/g, " ").trim();
+        const season = seasonMatch ? seasonMatch[0].toUpperCase() : "";
+        const resolution = resolutionMatch ? resolutionMatch[1] : "";
+        return { title, season, resolution, quality };
+      }
+
       function renderAddNewPanel() {
+        const isSeries = state.activeTab === "series";
         const movieTypeOpts = ["EN", "HN", "AN", "FN", "RG", "DC", "3D"]
           .map((o) => `<option value="${o}">${o}</option>`)
           .join("");
@@ -2616,50 +2637,45 @@
           .map((o) => `<option value="${o}">${o || "\u2014"}</option>`)
           .join("");
         const qualityOpts = `<option value="">\u2014</option><option value="hevc">hevc</option><option value="x264">x264</option>`;
-        const storageCaseOpts = ["", "MS1", "MS2", "MS3", "MS4", "MS5"]
-          .map((o) => `<option value="${o}">${o || "\u2014"}</option>`)
-          .join("");
-        const storageHddOpts = [
-          "",
-          "M01",
-          "M03",
-          "M04",
-          "M05",
-          "M06",
-          "M09",
-          "M10",
-        ]
-          .map((o) => `<option value="${o}">${o || "\u2014"}</option>`)
-          .join("");
+        const storageCaseOpts = isSeries
+          ? null
+          : ["", "MS1", "MS2", "MS3", "MS4", "MS5"]
+              .map((o) => `<option value="${o}">${o || "\u2014"}</option>`)
+              .join("");
+        const storageHddOpts = isSeries
+          ? null
+          : ["", "M01", "M03", "M04", "M05", "M06", "M09", "M10"]
+              .map((o) => `<option value="${o}">${o || "\u2014"}</option>`)
+              .join("");
+        const browseInputAttrs = isSeries
+          ? "webkitdirectory directory multiple"
+          : "";
 
         el.detailsContainer.innerHTML = `
 				<div class="detail-card" style="display:flex;flex-direction:column;gap:14px;">
 					<div class="detail-content" style="min-width:0;">
-						<h2 class="detail-title" style="margin-bottom:10px;">Add New Movie</h2>
+						<h2 class="detail-title" style="margin-bottom:10px;">${isSeries ? "Add New Series" : "Add New Movie"}</h2>
 						<div class="detail-grid">
-							<div class="label">Filename</div>
+							<div class="label">${isSeries ? "Folder" : "Filename"}</div>
 							<div style="display:flex;gap:6px;align-items:center;">
 								<input id="addNewFilename" class="detail-input" type="text"
-									placeholder="Movie.Name.[2021].[1080p].mkv" style="flex:1;min-width:0;" />
-								<input id="addNewFileBrowse" type="file" style="display:none;" />
-								<button id="addNewBrowseBtn" class="btn">Browse&hellip;</button>
+									placeholder="${isSeries ? "Series.Name.S1.(1080p).(X5)" : "Movie.Name.[2021].[1080p].mkv"}" style="flex:1;min-width:0;" />
+								<input id="addNewFileBrowse" type="file" style="display:none;" ${browseInputAttrs} />
+                <button id="addNewBrowseBtn" class="btn">${isSeries ? "Select Folder\u2026" : "Browse\u2026"}</button>
 							</div>
 							<div class="label">Title</div>
-							<input id="addNewTitle" class="detail-input" type="text" placeholder="Movie Title" />
-							<div class="label">Year</div>
-							<input id="addNewYear" class="detail-input" type="text" placeholder="e.g. 2021" />
-							<div class="label">Movie Type</div>
-							<select id="addNewMovieType" class="detail-input">${movieTypeOpts}</select>
+							<input id="addNewTitle" class="detail-input" type="text" placeholder="${isSeries ? "Series Title" : "Movie Title"}" />
+							${isSeries ? "" : `<div class=\"label\">Year</div><input id=\"addNewYear\" class=\"detail-input\" type=\"text\" placeholder=\"e.g. 2021\" />`}
+							${isSeries ? `<div class=\"label\">Season</div><input id=\"addNewSeason\" class=\"detail-input\" type=\"text\" placeholder=\"e.g. S1\" />` : `<div class=\"label\">Movie Type</div><select id=\"addNewMovieType\" class=\"detail-input\">${movieTypeOpts}</select>`}
 							<div class="label">Resolution</div>
 							<select id="addNewResolution" class="detail-input">${resolutionOpts}</select>
 							<div class="label">Quality</div>
 							<select id="addNewQuality" class="detail-input">${qualityOpts}</select>
 							<div class="label">Storage Case</div>
-							<select id="addNewStorageCase" class="detail-input">${storageCaseOpts}</select>
+							${isSeries ? `<input id=\"addNewStorageCase\" class=\"detail-input\" type=\"text\" placeholder=\"e.g. SS6\" />` : `<select id=\"addNewStorageCase\" class=\"detail-input\">${storageCaseOpts}</select>`}
 							<div class="label">Storage HDD</div>
-							<select id="addNewStorageHdd" class="detail-input">${storageHddOpts}</select>
-							<div class="label">Storage Size</div>
-							<input id="addNewStorageSize" class="detail-input" type="text" placeholder="e.g. 3.5" />
+							${isSeries ? `<input id=\"addNewStorageHdd\" class=\"detail-input\" type=\"text\" placeholder=\"e.g. 2\" />` : `<select id=\"addNewStorageHdd\" class=\"detail-input\">${storageHddOpts}</select>`}
+							${isSeries ? "" : `<div class=\"label\">Storage Size</div><input id=\"addNewStorageSize\" class=\"detail-input\" type=\"text\" placeholder=\"e.g. 3.5\" />`}
 						</div>
 						<div style="margin-top:14px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
 							<button id="addNewSaveBtn" class="btn primary">Save</button>
@@ -2673,11 +2689,13 @@
       }
 
       function wireAddNewPanel() {
+        const isSeries = state.activeTab === "series";
         const browseBtn = document.getElementById("addNewBrowseBtn");
         const fileBrowse = document.getElementById("addNewFileBrowse");
         const filenameInput = document.getElementById("addNewFilename");
         const titleInput = document.getElementById("addNewTitle");
         const yearInput = document.getElementById("addNewYear");
+        const seasonInput = document.getElementById("addNewSeason");
         const movieTypeSel = document.getElementById("addNewMovieType");
         const resolutionSel = document.getElementById("addNewResolution");
         const qualitySel = document.getElementById("addNewQuality");
@@ -2688,10 +2706,17 @@
         const cancelBtn = document.getElementById("addNewCancelBtn");
         const statusEl = document.getElementById("addNewStatus");
 
-        function applyParsed(filename, force = false) {
-          const parsed = parseFilenameForForm(filename);
-          if (force || !titleInput.value) titleInput.value = parsed.title;
-          if (force || !yearInput.value) yearInput.value = parsed.year;
+        function applyParsed(sourceName, force = false) {
+          const parsed = isSeries
+            ? parseSeriesFolderForForm(sourceName)
+            : parseMovieFilenameForForm(sourceName);
+          if (force || !titleInput.value) titleInput.value = parsed.title || "";
+          if (!isSeries && yearInput && (force || !yearInput.value)) {
+            yearInput.value = parsed.year || "";
+          }
+          if (isSeries && seasonInput && (force || !seasonInput.value)) {
+            seasonInput.value = parsed.season || "";
+          }
           if (resolutionSel && parsed.resolution) {
             const match = [...resolutionSel.options].find(
               (o) => o.value.toLowerCase() === parsed.resolution.toLowerCase(),
@@ -2702,27 +2727,63 @@
         }
 
         if (browseBtn && fileBrowse) {
-          browseBtn.addEventListener("click", () => fileBrowse.click());
-          fileBrowse.addEventListener("change", () => {
-            const file = fileBrowse.files[0];
-            if (!file) return;
-            const filenameNoExt = file.name.replace(/\.[^.]+$/, "");
-            filenameInput.value = filenameNoExt;
-            // Force-fill all parsed fields when a file is chosen
+          browseBtn.addEventListener("click", async () => {
+            if (!isSeries) {
+              fileBrowse.click();
+              return;
+            }
+
+            let sourceName = "";
+            if (typeof window.showDirectoryPicker === "function") {
+              try {
+                const dirHandle = await window.showDirectoryPicker();
+                sourceName = normalize(dirHandle?.name || "");
+              } catch (error) {
+                // User cancelled or API unavailable in this context.
+              }
+            }
+
+            if (!sourceName) {
+              // Fallback for browsers without showDirectoryPicker support.
+              fileBrowse.click();
+              return;
+            }
+
+            filenameInput.value = sourceName;
             titleInput.value = "";
-            yearInput.value = "";
-            applyParsed(filenameNoExt, true);
+            if (yearInput) yearInput.value = "";
+            if (seasonInput) seasonInput.value = "";
+            applyParsed(sourceName, true);
+          });
+
+          fileBrowse.addEventListener("change", () => {
+            const file = fileBrowse.files && fileBrowse.files[0];
+            if (!file) return;
+
+            let sourceName = "";
+            if (isSeries) {
+              const rel = file.webkitRelativePath || "";
+              sourceName = rel ? rel.split("/")[0] : "";
+            } else {
+              sourceName = file.name.replace(/\.[^.]+$/, "");
+            }
+            if (!sourceName) return;
+
+            filenameInput.value = sourceName;
+            titleInput.value = "";
+            if (yearInput) yearInput.value = "";
+            if (seasonInput) seasonInput.value = "";
+            applyParsed(sourceName, true);
           });
         }
 
         if (filenameInput) {
-          // Auto-fill empty fields when user manually types/pastes a filename and leaves
           filenameInput.addEventListener("change", () => {
             applyParsed(filenameInput.value, false);
           });
         }
 
-        if (movieTypeSel) {
+        if (!isSeries && movieTypeSel) {
           movieTypeSel.addEventListener("change", () => {
             applyMovieTypeStorageRuleToInputs(
               movieTypeSel.value,
@@ -2756,18 +2817,17 @@
             saveBtn.disabled = true;
 
             const payload = {
+              sheetType: isSeries ? "series" : "movies",
               filename,
               title,
-              year: yearInput?.value.trim() || "",
-              "Movie Type":
-                document.getElementById("addNewMovieType")?.value || "",
+              year: isSeries ? "" : yearInput?.value.trim() || "",
+              "Movie Type": isSeries ? "" : movieTypeSel?.value || "",
               resolution: resolutionSel?.value || "",
               Quality: qualitySel?.value || "",
-              storageCase:
-                document.getElementById("addNewStorageCase")?.value || "",
-              storageHdd:
-                document.getElementById("addNewStorageHdd")?.value || "",
-              storageSize: storageSizeInput?.value.trim() || "",
+              storageCase: storageCaseSel?.value || "",
+              storageHdd: storageHddSel?.value || "",
+              storageSize: isSeries ? "" : storageSizeInput?.value.trim() || "",
+              Season: isSeries ? seasonInput?.value.trim() || "" : "",
             };
 
             try {
@@ -2775,11 +2835,12 @@
               state.isAddingNew = false;
               applyBackendPayload(result);
 
-              // Select the newly added movie and navigate to its page.
               if (result.newDocId) {
                 const parts = result.newDocId.split("_");
                 const newRowIdx = parseInt(parts[parts.length - 1], 10);
-                const newItem = state.movies.find(
+                const targetType = isSeries ? "series" : "movies";
+                const collection = isSeries ? state.series : state.movies;
+                const newItem = collection.find(
                   (m) => Number(m.rowIndex) === newRowIdx,
                 );
                 if (newItem) {
@@ -2794,7 +2855,7 @@
                   const itemIdx = state.filtered.findIndex(
                     (i) =>
                       Number(i.rowIndex) === newRowIdx &&
-                      i.sheetType === "movies",
+                      i.sheetType === targetType,
                   );
                   if (itemIdx >= 0)
                     state.page = Math.floor(itemIdx / pageSize) + 1;
@@ -3100,6 +3161,14 @@
         }
       }
 
+      function updateAddButtonUi() {
+        if (!el.addMovieBtn) return;
+        el.addMovieBtn.style.display = "";
+        const isSeries = state.activeTab === "series";
+        el.addMovieBtn.title = isSeries ? "Add new series" : "Add new movie";
+        el.addMovieBtn.setAttribute("aria-label", el.addMovieBtn.title);
+      }
+
       function setActiveTab(tab) {
         if (IS_TAB_LOCKED && tab !== state.activeTab) return;
         state.isAddingNew = false;
@@ -3114,10 +3183,7 @@
 
         el.tabMovies.classList.toggle("active", tab === "movies");
         el.tabSeries.classList.toggle("active", tab === "series");
-
-        if (el.addMovieBtn) {
-          el.addMovieBtn.style.display = tab === "movies" ? "" : "none";
-        }
+        updateAddButtonUi();
 
         applyFilterAndRender(false, true);
       }
@@ -3176,7 +3242,6 @@
 
         if (el.addMovieBtn) {
           el.addMovieBtn.addEventListener("click", () => {
-            if (state.activeTab !== "movies") return;
             state.isAddingNew = true;
             state.selectedKey = null;
             state.isEditingDetails = false;
@@ -3370,10 +3435,7 @@
           // Apply active-tab visuals without triggering render/persistence before data is loaded.
           el.tabMovies.classList.toggle("active", state.activeTab === "movies");
           el.tabSeries.classList.toggle("active", state.activeTab === "series");
-          if (el.addMovieBtn) {
-            el.addMovieBtn.style.display =
-              state.activeTab === "movies" ? "" : "none";
-          }
+          updateAddButtonUi();
 
           bindEvents();
           el.listViewBtn.classList.toggle("primary", state.viewMode === "list");
