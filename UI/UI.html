@@ -745,11 +745,19 @@
       const API_BASE = "http://127.0.0.1:5000"; // Python server
       const URL_PARAMS = new URLSearchParams(window.location.search || "");
       const URL_TAB = (URL_PARAMS.get("tab") || "").toLowerCase();
-      const INITIAL_TAB = URL_TAB === "series" ? "series" : "movies";
       const IS_TAB_LOCKED = URL_PARAMS.get("lockTab") === "1";
       const UI_SELECTION_STORAGE_KEY = "movieUiSelection";
+      const UI_ACTIVE_TAB_STORAGE_KEY = "movieUiActiveTab";
       const UI_VIEW_MODE_STORAGE_KEY = "movieUiViewMode";
       const UI_PAGE_STORAGE_KEY = "movieUiPage";
+
+      function getPersistedActiveTab() {
+        if (URL_TAB === "movies" || URL_TAB === "series") return URL_TAB;
+        const saved = (localStorage.getItem(UI_ACTIVE_TAB_STORAGE_KEY) || "")
+          .trim()
+          .toLowerCase();
+        return saved === "series" ? "series" : "movies";
+      }
 
       function getPersistedViewMode() {
         const saved = (localStorage.getItem(UI_VIEW_MODE_STORAGE_KEY) || "")
@@ -758,17 +766,45 @@
         return saved === "grid" ? "grid" : "list";
       }
 
-      function getPersistedPage() {
-        const saved = parseInt(
-          localStorage.getItem(UI_PAGE_STORAGE_KEY) || "1",
-          10,
-        );
-        return isNaN(saved) || saved < 1 ? 1 : saved;
+      function getPersistedPage(tab = null) {
+        const normalizedTab =
+          tab === "series" || tab === "movies" ? tab : getPersistedActiveTab();
+        const raw = localStorage.getItem(UI_PAGE_STORAGE_KEY) || "";
+        if (!raw) return 1;
+
+        // Backward compatibility: legacy format was a plain number.
+        const legacyNumber = parseInt(raw, 10);
+        if (!isNaN(legacyNumber) && legacyNumber > 0) return legacyNumber;
+
+        try {
+          const parsed = JSON.parse(raw);
+          const value = Number(parsed?.[normalizedTab] || 0);
+          return value > 0 ? value : 1;
+        } catch {
+          return 1;
+        }
+      }
+
+      function persistPage(tab, page) {
+        const normalizedTab = tab === "series" ? "series" : "movies";
+        const value = Math.max(1, Number(page || 1));
+        let parsed = {};
+        try {
+          const raw = localStorage.getItem(UI_PAGE_STORAGE_KEY) || "{}";
+          const obj = JSON.parse(raw);
+          if (obj && typeof obj === "object" && !Array.isArray(obj)) {
+            parsed = obj;
+          }
+        } catch {
+          parsed = {};
+        }
+        parsed[normalizedTab] = value;
+        localStorage.setItem(UI_PAGE_STORAGE_KEY, JSON.stringify(parsed));
       }
 
       const state = {
         resources: {},
-        activeTab: INITIAL_TAB,
+        activeTab: getPersistedActiveTab(),
         viewMode: getPersistedViewMode(),
         movies: [],
         series: [],
@@ -778,7 +814,7 @@
         seriesSheetName: "",
         sourceFileName: "_mYCOllectioN-CK-PC.xlsx",
         filtered: [],
-        page: getPersistedPage(),
+        page: getPersistedPage(getPersistedActiveTab()),
         selectedKey: null,
         searchTerm: "",
         titleOnlySearch: false,
@@ -1039,27 +1075,98 @@
         if (!item) return;
         const rowIndex = Number(item.rowIndex || 0);
         if (!rowIndex || !item.sheetType) return;
+        const tab = item.sheetType === "series" ? "series" : "movies";
+        let parsed = {};
+        try {
+          const raw = localStorage.getItem(UI_SELECTION_STORAGE_KEY) || "{}";
+          const obj = JSON.parse(raw);
+          if (obj && typeof obj === "object" && !Array.isArray(obj)) {
+            parsed = obj;
+          }
+        } catch {
+          parsed = {};
+        }
+        parsed[tab] = { sheetType: tab, rowIndex };
         localStorage.setItem(
           UI_SELECTION_STORAGE_KEY,
-          JSON.stringify({
-            sheetType: item.sheetType,
-            rowIndex,
-          }),
+          JSON.stringify(parsed),
         );
       }
 
-      function getPersistedSelection() {
+      function getPersistedSelection(sheetType = null) {
+        const targetSheetType =
+          sheetType === "series" || sheetType === "movies"
+            ? sheetType
+            : null;
         const raw = localStorage.getItem(UI_SELECTION_STORAGE_KEY) || "";
         if (!raw) return null;
         try {
           const parsed = JSON.parse(raw);
-          if (!parsed || typeof parsed !== "object") return null;
-          const sheetType = normalize(parsed.sheetType);
-          const rowIndex = Number(parsed.rowIndex || 0);
-          if (!sheetType || !rowIndex) return null;
-          return { sheetType, rowIndex };
+
+          // Backward compatibility: legacy format was a single selection object.
+          if (
+            parsed &&
+            typeof parsed === "object" &&
+            !Array.isArray(parsed) &&
+            parsed.sheetType
+          ) {
+            const legacySheetType = normalize(parsed.sheetType);
+            const legacyRowIndex = Number(parsed.rowIndex || 0);
+            if (!legacySheetType || !legacyRowIndex) return null;
+            if (targetSheetType && legacySheetType !== targetSheetType)
+              return null;
+            return { sheetType: legacySheetType, rowIndex: legacyRowIndex };
+          }
+
+          if (!parsed || typeof parsed !== "object" || Array.isArray(parsed))
+            return null;
+          const slot = targetSheetType ? parsed[targetSheetType] : null;
+          if (!slot || typeof slot !== "object") return null;
+          const normalizedSheetType = normalize(slot.sheetType);
+          const rowIndex = Number(slot.rowIndex || 0);
+          if (!normalizedSheetType || !rowIndex) return null;
+          return { sheetType: normalizedSheetType, rowIndex };
         } catch {
           return null;
+        }
+      }
+
+      function clearPersistedSelection(sheetType = null) {
+        const targetSheetType =
+          sheetType === "series" || sheetType === "movies"
+            ? sheetType
+            : null;
+        if (!targetSheetType) {
+          localStorage.removeItem(UI_SELECTION_STORAGE_KEY);
+          return;
+        }
+
+        const raw = localStorage.getItem(UI_SELECTION_STORAGE_KEY) || "";
+        if (!raw) return;
+        try {
+          const parsed = JSON.parse(raw);
+          if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+            localStorage.removeItem(UI_SELECTION_STORAGE_KEY);
+            return;
+          }
+
+          // Legacy single-object format.
+          if (parsed.sheetType) {
+            const legacySheetType = normalize(parsed.sheetType);
+            if (legacySheetType === targetSheetType) {
+              localStorage.removeItem(UI_SELECTION_STORAGE_KEY);
+            }
+            return;
+          }
+
+          delete parsed[targetSheetType];
+          if (Object.keys(parsed).length === 0) {
+            localStorage.removeItem(UI_SELECTION_STORAGE_KEY);
+          } else {
+            localStorage.setItem(UI_SELECTION_STORAGE_KEY, JSON.stringify(parsed));
+          }
+        } catch {
+          localStorage.removeItem(UI_SELECTION_STORAGE_KEY);
         }
       }
 
@@ -1152,6 +1259,19 @@
         return fallbackIdx;
       }
 
+      function extractSeriesTitleFromFilename(filename) {
+        const fn = normalize(filename);
+        if (!fn) return "";
+        // Remove season marker (S1, S2, etc.) and everything after it
+        const withoutSeason = fn.replace(/\bS\d+\b.*$/i, "").trim();
+        // Replace dots/underscores/hyphens with spaces for readability
+        const cleaned = withoutSeason
+          .replace(/[._-]+/g, " ")
+          .replace(/\s+/g, " ")
+          .trim();
+        return cleaned;
+      }
+
       function syncItemToStateRows(item) {
         const targetRows =
           item.sheetType === "series" ? state.seriesRows : state.movieRows;
@@ -1170,21 +1290,34 @@
         const row = Array.isArray(targetRows[rowIndex])
           ? [...targetRows[rowIndex]]
           : [];
-        ensureRowCapacity(row, 15);
+        
         const quality = normalize(item.Quality).toLowerCase();
         const marker = quality === "hevc" ? "y" : quality === "x264" ? "✓" : "";
 
         row[fileCol] = item.filename || ""; // Header-mapped filename column (File/Filename)
         row[1] = item.title || ""; // Column B title
-        row[2] = item.year || ""; // Column C year
-        row[4] = item.resolution || ""; // Column E resolution
-        row[5] = item["Movie Type"] || item.language || ""; // Column F Movie Type/language
-        row[6] = item.storageCase || ""; // Column G case
-        row[7] = item.storageHdd || ""; // Column H hdd
-        row[8] = marker; // Column I quality marker
-        row[11] = item.myRating || ""; // Column L rating
-        row[13] = item.storageSize || ""; // Column N size
-        row[14] = compactMetadataJson(item.metadataJson); // Column O metadata
+        
+        if (item.sheetType === "series") {
+          // Series sheet: Folder at 2, Episodes at 3, Res at 4, Case at 5, X5 at 6, R at 7, Bkup at 8
+          ensureRowCapacity(row, 10);
+          row[2] = item.year || ""; // Column C folder/year
+          row[4] = item.resolution || ""; // Column E resolution
+          row[5] = item.storageCase || ""; // Column F case (CORRECTED FOR SERIES)
+          row[8] = item.storageHdd || ""; // Column I bkup/hdd (CORRECTED FOR SERIES)
+          row[9] = compactMetadataJson(item.metadataJson); // Column J data / metadata
+        } else {
+          // Movies sheet: Year at 2, S at 3, Q at 4, Info at 5, Case at 6, HDD at 7
+          ensureRowCapacity(row, 15);
+          row[2] = item.year || ""; // Column C year
+          row[4] = item.resolution || ""; // Column E resolution
+          row[5] = item["Movie Type"] || item.language || ""; // Column F Movie Type/language
+          row[6] = item.storageCase || ""; // Column G case
+          row[7] = item.storageHdd || ""; // Column H hdd
+          row[8] = marker; // Column I quality marker
+          row[11] = item.myRating || ""; // Column L rating
+          row[13] = item.storageSize || ""; // Column N size
+          row[14] = compactMetadataJson(item.metadataJson); // Column O metadata
+        }
 
         targetRows[rowIndex] = row;
       }
@@ -1550,6 +1683,22 @@
         }
       }
 
+      function restorePersistedSelectionForTab(tab) {
+        const savedSelection = getPersistedSelection(tab);
+        if (!savedSelection) {
+          state.selectedKey = null;
+          return;
+        }
+        const source =
+          savedSelection.sheetType === "series" ? state.series : state.movies;
+        const matched = source.find(
+          (i) =>
+            i.sheetType === savedSelection.sheetType &&
+            Number(i.rowIndex || 0) === savedSelection.rowIndex,
+        );
+        state.selectedKey = matched ? matched.key : null;
+      }
+
       function applyBackendPayload(
         payload,
         defaultSourceFileName = "Local Seed",
@@ -1565,22 +1714,13 @@
         state.selectedItemKeys.clear();
         state.isMetadataCollapsed = true;
         state.hasUnsavedChanges = false;
-        const savedSelection = getPersistedSelection();
-        if (savedSelection) {
-          const source =
-            savedSelection.sheetType === "series" ? state.series : state.movies;
-          const matched = source.find(
-            (i) =>
-              i.sheetType === savedSelection.sheetType &&
-              Number(i.rowIndex || 0) === savedSelection.rowIndex,
-          );
-          state.selectedKey = matched ? matched.key : null;
-        } else {
-          state.selectedKey = null;
-        }
+        restorePersistedSelectionForTab(state.activeTab);
         updateDataSourceBadge();
         applyFilterAndRender(false, false);
-        const _restoredPage = Math.min(getPersistedPage(), totalPages());
+        const _restoredPage = Math.min(
+          getPersistedPage(state.activeTab),
+          totalPages(),
+        );
         state.page = _restoredPage;
         render();
         renderDetails();
@@ -1827,7 +1967,7 @@
 
       function clearDetailsSelection() {
         state.selectedKey = null;
-        localStorage.removeItem(UI_SELECTION_STORAGE_KEY);
+        clearPersistedSelection(state.activeTab);
         state.isEditingDetails = false;
         state.isMetadataCollapsed = true;
       }
@@ -1931,7 +2071,7 @@
           state.page = pages;
         }
         if (!state.pageLock) {
-          localStorage.setItem(UI_PAGE_STORAGE_KEY, state.page);
+          persistPage(state.activeTab, state.page);
         }
 
         el.leftTitle.textContent =
@@ -1971,7 +2111,7 @@
 								<div class="grid-poster-wrap">${posterSlot}</div>
 								<div class="grid-info">
 									<div class="item-title">${escapeHtml(item.title)}</div>
-									<div class="item-meta">${escapeHtml(item.year || t("values.dash"))} • ${escapeHtml(item.resolution || t("values.notAvailable"))}</div>
+									<div class="item-meta">${state.activeTab === "series" ? "" : escapeHtml(item.year || t("values.dash")) + " • "}${escapeHtml(item.resolution || t("values.notAvailable"))}</div>
 								</div>
 							</article>`;
               } else {
@@ -1985,7 +2125,7 @@
 								<div>
 									<div class="item-title"${item.titleMissing ? ' style="opacity:0.6;font-style:italic;"' : ""}>${escapeHtml(item.title)}</div>
 									${item.filename ? `<div class="item-meta" style="font-size:11px;opacity:0.65;word-break:break-all;">${escapeHtml(item.filename)}</div>` : ""}
-									<div class="item-meta">${escapeHtml(item.language || t("values.unknown"))} • ${escapeHtml(item.resolution || t("values.notAvailable"))} • ${escapeHtml(item.year || t("values.dash"))}</div>
+                  <div class="item-meta">${escapeHtml(getDisplayLanguage(item))} • ${escapeHtml(item.resolution || t("values.notAvailable"))}${state.activeTab === "series" ? "" : " • " + escapeHtml(item.year || t("values.dash"))}</div>
 								</div>
 								<div class="item-meta">${escapeHtml(item.storageHdd || t("values.dash"))}</div>
 							</article>`;
@@ -2325,6 +2465,10 @@
         const pageLock = externalPageLock || beginPageLock();
         const ownsPageLock = !externalPageLock;
         const imdbId = normalize(item.imdbId);
+        const isSeriesItem = item.sheetType === "series";
+        const seriesTitleFromFilename = isSeriesItem
+          ? extractSeriesTitleFromFilename(item.filename)
+          : "";
         const fallbackTitle = normalize(item.title) || normalize(item.filename);
         const fallbackYear = normalize(item.year);
 
@@ -2349,6 +2493,8 @@
             filename: item.filename,
             title: item.title,
             year: item.year,
+            type: isSeriesItem ? "series" : undefined,
+            seriesTitleFromFilename: isSeriesItem ? seriesTitleFromFilename : undefined,
           });
           const query = omdbResult?.query || {};
           const queryTitle = normalize(query.title || "");
@@ -2758,25 +2904,50 @@
             return `<select class="detail-input" data-edit-field="Quality">${opts}</select>`;
           }
           if (field === "storageHdd") {
-            const opts = ["M01", "M03", "M04", "M05", "M06", "M09", "M10"]
-              .map(
-                (option) =>
-                  `<option value="${option}"${item[field] === option ? " selected" : ""}>${option}</option>`,
-              )
-              .join("");
-            return `<select class="detail-input" data-edit-field="storageHdd">${opts}</select>`;
+            // Series and movies have different storage HDD value formats
+            if (item.sheetType === "series") {
+              // Series: allow text input for values like "2", "3", etc.
+              return `<input class="detail-input" data-edit-field="storageHdd" value="${escapeHtml(item[field] || "")}" />`;
+            } else {
+              // Movies: use dropdown with movie storage options
+              const opts = ["M01", "M03", "M04", "M05", "M06", "M09", "M10"]
+                .map(
+                  (option) =>
+                    `<option value="${option}"${item[field] === option ? " selected" : ""}>${option}</option>`,
+                )
+                .join("");
+              return `<select class="detail-input" data-edit-field="storageHdd">${opts}</select>`;
+            }
           }
           if (field === "storageCase") {
-            const opts = ["MS1", "MS2", "MS3", "MS4", "MS5"]
-              .map(
-                (option) =>
-                  `<option value="${option}"${item[field] === option ? " selected" : ""}>${option}</option>`,
-              )
-              .join("");
-            return `<select class="detail-input" data-edit-field="storageCase">${opts}</select>`;
+            // Series and movies may have different storage case formats
+            if (item.sheetType === "series") {
+              // Series: allow text input for values like "SS1", "SS6", etc.
+              return `<input class="detail-input" data-edit-field="storageCase" value="${escapeHtml(item[field] || "")}" />`;
+            } else {
+              // Movies: use dropdown with movie storage case options
+              const opts = ["MS1", "MS2", "MS3", "MS4", "MS5"]
+                .map(
+                  (option) =>
+                    `<option value="${option}"${item[field] === option ? " selected" : ""}>${option}</option>`,
+                )
+                .join("");
+              return `<select class="detail-input" data-edit-field="storageCase">${opts}</select>`;
+            }
           }
           return `<input class="detail-input" data-edit-field="${field}" value="${escapeHtml(item[field] || "")}" />`;
         };
+
+        // Build detail grid rows conditionally based on sheet type
+        const isMovie = item.sheetType === "movies";
+        const yearRow = isMovie ? `
+							<div class="label">${escapeHtml(t("details.yearOfRelease"))}</div>${valueCell("year")}` : "";
+        const movieTypeRow = isMovie ? `
+							<div class="label">${escapeHtml(t("details.movieType"))}</div>${valueCell("Movie Type")}` : "";
+        const qualityRow = `
+							<div class="label">${escapeHtml(t("details.quality"))}</div>${valueCell("Quality")}`;
+        const storageSizeRow = isMovie ? `
+							<div class="label">${escapeHtml(t("details.storageSize"))}</div>${valueCell("storageSize")}` : "";
 
         el.detailsContainer.innerHTML = `
 				<div class="detail-card">
@@ -2785,16 +2956,12 @@
 					</div>
 					<div class="detail-content">
 						<h2 class="detail-title">${escapeHtml(item.title)}</h2>
-						<div class="detail-grid">
-							<div class="label">${escapeHtml(t("details.yearOfRelease"))}</div>${valueCell("year")}
-							<div class="label">${escapeHtml(t("details.filename"))}</div>${valueCell("filename")}
-							<div class="label">${escapeHtml(t("details.movieType"))}</div>${valueCell("Movie Type")}
-							<div class="label">${escapeHtml(t("details.resolution"))}</div>${valueCell("resolution")}
-							<div class="label">${escapeHtml(t("details.quality"))}</div>${valueCell("Quality")}
+						<div class="detail-grid">${yearRow}
+							<div class="label">${escapeHtml(t("details.filename"))}</div>${valueCell("filename")}${movieTypeRow}
+							<div class="label">${escapeHtml(t("details.resolution"))}</div>${valueCell("resolution")}${qualityRow}
 							<div class="label">${escapeHtml(t("details.language"))}</div>${valueCell("language")}
 							<div class="label">${escapeHtml(t("details.storageCase"))}</div>${valueCell("storageCase")}
-							<div class="label">${escapeHtml(t("details.storageHdd"))}</div>${valueCell("storageHdd")}
-							<div class="label">${escapeHtml(t("details.storageSize"))}</div>${valueCell("storageSize")}
+							<div class="label">${escapeHtml(t("details.storageHdd"))}</div>${valueCell("storageHdd")}${storageSizeRow}
 							<div class="label">${escapeHtml(t("details.myRating"))}</div>${valueCell("myRating")}
 							<div class="label">${escapeHtml(t("details.imdbRating"))}</div><div>${(() => {
                 const meta = getMetadataObject(item);
@@ -2921,10 +3088,12 @@
         if (IS_TAB_LOCKED && tab !== state.activeTab) return;
         state.isAddingNew = false;
         state.activeTab = tab;
+        localStorage.setItem(UI_ACTIVE_TAB_STORAGE_KEY, tab);
+        state.page = getPersistedPage(tab);
         state.searchTerm = "";
         el.searchInput.value = "";
         state.isMetadataCollapsed = true;
-        state.selectedKey = null;
+        restorePersistedSelectionForTab(tab);
         state.selectedItemKeys.clear();
 
         el.tabMovies.classList.toggle("active", tab === "movies");
@@ -2934,7 +3103,7 @@
           el.addMovieBtn.style.display = tab === "movies" ? "" : "none";
         }
 
-        applyFilterAndRender(true);
+        applyFilterAndRender(false, true);
       }
 
       function setViewMode(mode) {
@@ -2942,8 +3111,19 @@
         localStorage.setItem(UI_VIEW_MODE_STORAGE_KEY, mode);
         el.listViewBtn.classList.toggle("primary", mode === "list");
         el.gridViewBtn.classList.toggle("primary", mode === "grid");
+
+        // Recalculate page so the currently selected item is visible in the new view mode.
+        if (state.selectedKey) {
+          const pageSize = mode === "grid" ? GRID_PAGE_SIZE : LIST_PAGE_SIZE;
+          const globalIdx = state.filtered.findIndex((i) => i.key === state.selectedKey);
+          if (globalIdx >= 0) {
+            state.page = Math.floor(globalIdx / pageSize) + 1;
+          }
+        }
+
         render();
         renderDetails();
+        scrollSelectedItemIntoView();
       }
 
       function bindEvents() {
@@ -3170,7 +3350,15 @@
           await loadUiResources();
           applyStaticStrings();
           applyTabModeUi();
-          setActiveTab(state.activeTab);
+
+          // Apply active-tab visuals without triggering render/persistence before data is loaded.
+          el.tabMovies.classList.toggle("active", state.activeTab === "movies");
+          el.tabSeries.classList.toggle("active", state.activeTab === "series");
+          if (el.addMovieBtn) {
+            el.addMovieBtn.style.display =
+              state.activeTab === "movies" ? "" : "none";
+          }
+
           bindEvents();
           el.listViewBtn.classList.toggle("primary", state.viewMode === "list");
           el.gridViewBtn.classList.toggle("primary", state.viewMode === "grid");

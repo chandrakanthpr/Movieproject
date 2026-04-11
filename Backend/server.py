@@ -211,7 +211,7 @@ def seed_load():
         return _seed_cache
     if not SEED_FILE.exists():
         raise FileNotFoundError(f"Seed file not found: {SEED_FILE}")
-    with open(SEED_FILE, "r", encoding="utf-8") as f:
+    with open(SEED_FILE, "r", encoding="utf-8-sig") as f:
         _seed_cache = json.load(f)
     logger.info(f"Seed loaded from disk ({SEED_FILE.stat().st_size // 1024} KB)")
     return _seed_cache
@@ -270,7 +270,7 @@ def _load_resource_catalog_from_file():
         return {}
 
     try:
-        with open(RESOURCE_FILE, "r", encoding="utf-8") as handle:
+        with open(RESOURCE_FILE, "r", encoding="utf-8-sig") as handle:
             data = json.load(handle)
         return data if isinstance(data, dict) else {}
     except Exception as ex:
@@ -321,7 +321,7 @@ def _load_omdb_api_keys_from_file():
         return []
 
     try:
-        raw_text = OMDB_KEYS_FILE.read_text(encoding="utf-8")
+        raw_text = OMDB_KEYS_FILE.read_text(encoding="utf-8-sig")
         if not raw_text.strip():
             return []
         return _unique_preserve_order(_parse_key_list(raw_text.splitlines()))
@@ -423,18 +423,25 @@ def item_to_row(item, header_row):
 
     quality = str(item.get("Quality") or "").strip().lower()
     marker = "y" if quality == "hevc" else ("\u2713" if quality == "x264" else "")
+    is_series = item.get("sheetType") == "series"
 
     set_cell(item.get("filename", ""), ["filename", "file name", "file", "filepath", "file path"], 0)
     set_cell(item.get("title", ""), ["title", "movie title", "name"], 1)
     set_cell(item.get("year", ""), ["year", "release year"], 2)
     set_cell(item.get("resolution", ""), ["resolution"], 4)
-    set_cell(item.get("Movie Type", ""), ["language"], 5)
-    set_cell(item.get("storageCase", ""), ["storage case", "case", "storagecase"], 6)
-    set_cell(item.get("storageHdd", ""), ["storage hdd", "hdd", "storagehdd"], 7)
-    set_cell(marker, ["marker", "codec", "quality marker", "x264/hevc"], 8)
-    set_cell(item.get("myRating", ""), ["my rating", "rating", "imdb rating", "myrating"], 11)
-    set_cell(item.get("storageSize", ""), ["storage size", "size", "storagesize"], 13)
-    set_cell(_compact_metadata(item.get("metadataJson", "")), ["metadata", "metadatajson", "omdb"], 14)
+    if is_series:
+        set_cell(item.get("storageCase", ""), ["storage case", "case", "storagecase"], 5)
+        set_cell(marker, ["marker", "codec", "quality marker", "x264/hevc"], 7)
+        set_cell(item.get("storageHdd", ""), ["backup", "bkup", "storage hdd", "hdd", "storagehdd"], 8)
+        set_cell(_compact_metadata(item.get("metadataJson", "")), ["data", "metadata", "metadatajson", "omdb"], 9)
+    else:
+        set_cell(item.get("Movie Type", ""), ["language"], 5)
+        set_cell(item.get("storageCase", ""), ["storage case", "case", "storagecase"], 6)
+        set_cell(item.get("storageHdd", ""), ["storage hdd", "hdd", "storagehdd"], 7)
+        set_cell(marker, ["marker", "codec", "quality marker", "x264/hevc"], 8)
+        set_cell(item.get("myRating", ""), ["my rating", "rating", "imdb rating", "myrating"], 11)
+        set_cell(item.get("storageSize", ""), ["storage size", "size", "storagesize"], 13)
+        set_cell(_compact_metadata(item.get("metadataJson", "")), ["metadata", "metadatajson", "omdb"], 14)
 
     return row
 
@@ -492,44 +499,83 @@ def parse_rows(rows, sheet_type):
         if not title and not filename:
             continue
 
-        marker  = str(row[8]).strip() if len(row) > 8 else ""
-        quality = "hevc" if marker.lower() == "y" else ("x264" if marker == "\u2713" else "")
+        # Parse quality marker based on sheet type
+        marker  = ""
+        quality = ""
+        if sheet_type == "movies":
+            marker  = str(row[8]).strip() if len(row) > 8 else ""
+            quality = "hevc" if marker.lower() == "y" else ("x264" if marker == "\u2713" else "")
+        elif sheet_type == "series":
+            # For series, check column 7 (R) for quality marker
+            marker  = str(row[7]).strip() if len(row) > 7 else ""
+            quality = "hevc" if marker.lower() == "y" else ("x264" if marker == "\u2713" else "")
 
-        poster, metadata_json = "", ""
-        if len(row) > 14:
-            col_o = str(row[14]).strip()
-            if col_o:
+        poster, metadata_json, imdb_id = "", "", ""
+        metadata_col_idx = 9 if sheet_type == "series" else 14
+        if len(row) > metadata_col_idx:
+            metadata_cell = str(row[metadata_col_idx]).strip()
+            if metadata_cell:
                 try:
-                    obj = json.loads(col_o)
+                    obj = json.loads(metadata_cell)
                     if isinstance(obj, dict):
-                        poster        = obj.get("poster", "") or obj.get("Poster", "")
+                        poster = obj.get("poster", "") or obj.get("Poster", "")
+                        imdb_id = obj.get("imdbId", "") or obj.get("imdbID", "")
                         metadata_json = json.dumps(obj, indent=2)
                 except Exception:
-                    poster        = col_o if col_o.startswith("http") else ""
-                    metadata_json = col_o
+                    poster = metadata_cell if metadata_cell.startswith("http") else ""
+                    metadata_json = metadata_cell
 
         def g(idx, default=""):
             return str(row[idx]).strip() if len(row) > idx else default
 
-        items.append({
-            "key":          f"{title or filename}__{i}",
-            "title":        title,
-            "titleMissing": not title,
-            "sheetType":    sheet_type,
-            "rowIndex":     i,
-            "filename":     filename,
-            "year":         g(2),
-            "Movie Type":   g(5),
-            "resolution":   g(4),
-            "Quality":      quality,
-            "storageCase":  g(6),
-            "storageHdd":   g(7),
-            "storageSize":  g(13),
-            "myRating":     g(11),
-            "imdbId":       "",
-            "poster":       poster,
-            "metadataJson": metadata_json,
-        })
+        # Column indices differ between movies and series
+        if sheet_type == "series":
+            season = extract_season_from_filename(filename)
+            # Series header: ID, Title, Folder, Episodes, Res, Case, X5, R, Bkup, Data, ...
+            item_data = {
+                "key":          f"{title or filename}__{i}",
+                "title":        title,
+                "titleMissing": not title,
+                "sheetType":    sheet_type,
+                "rowIndex":     i,
+                "filename":     filename,
+                "year":         g(2),  # Folder
+                "Movie Type":   "",
+                "resolution":   g(4),  # Res
+                "Quality":      quality,
+                "storageCase":  g(5),  # Case
+                "storageHdd":   g(8),  # Bkup
+                "storageSize":  "",
+                "myRating":     "",
+                "imdbId":       imdb_id,
+                "poster":       poster,
+                "metadataJson": metadata_json,
+            }
+            if season:
+                item_data["Season"] = season
+        else:
+            # Movies header: Disk No, Title, Year, S, Q, Info, Case, HDD, X5, File, R, MyR, Imdb, Gb, Details, ...
+            item_data = {
+                "key":          f"{title or filename}__{i}",
+                "title":        title,
+                "titleMissing": not title,
+                "sheetType":    sheet_type,
+                "rowIndex":     i,
+                "filename":     filename,
+                "year":         g(2),
+                "Movie Type":   g(5),
+                "resolution":   g(4),
+                "Quality":      quality,
+                "storageCase":  g(6),
+                "storageHdd":   g(7),
+                "storageSize":  g(13),
+                "myRating":     g(11),
+                "imdbId":       imdb_id,
+                "poster":       poster,
+                "metadataJson": metadata_json,
+            }
+        
+        items.append(item_data)
     return items
 
 
@@ -573,6 +619,15 @@ def is_metadata_missing(item_data):
         return not str(parsed.get("Title", "") or "").strip()
     except Exception:
         return True
+
+
+def extract_season_from_filename(filename):
+    """Extract season label (e.g. 'S1', 'S2') from a series filename."""
+    raw = _normalize_text(filename)
+    if not raw:
+        return None
+    match = re.search(r'\bS(\d+)\b', raw, re.IGNORECASE)
+    return f"S{match.group(1)}" if match else None
 
 
 def parse_filename_hint(filename):
@@ -620,6 +675,7 @@ def fetch_metadata_from_omdb(query):
     imdb_id = _normalize_text(query.get("imdbId") if isinstance(query, dict) else "")
     title = _normalize_text(query.get("title") if isinstance(query, dict) else "")
     year = _normalize_text(query.get("year") if isinstance(query, dict) else "")
+    type_filter = _normalize_text(query.get("type") if isinstance(query, dict) else "")
     title = _normalize_omdb_query_title(title)
     if not imdb_id and not title:
         raise ValueError(_resource_text(
@@ -643,6 +699,8 @@ def fetch_metadata_from_omdb(query):
                     params["t"] = query_title
                     if query_year:
                         params["y"] = query_year
+                if type_filter:
+                    params["type"] = type_filter
 
                 response = requests.get("https://www.omdbapi.com/", params=params, timeout=20)
                 if response.status_code != 200:
@@ -696,7 +754,7 @@ def fetch_metadata_from_omdb(query):
     ))
 
 
-def fetch_omdb_metadata(api_key, title, year=""):
+def fetch_omdb_metadata(api_key, title, year="", type_filter=None):
     params = {
         "apikey": api_key,
         "t": title,
@@ -705,6 +763,8 @@ def fetch_omdb_metadata(api_key, title, year=""):
     }
     if year:
         params["y"] = year
+    if type_filter:  # type_filter can be "movie", "series", "episode"
+        params["type"] = type_filter
 
     resp = requests.get("https://www.omdbapi.com/", params=params, timeout=20)
     resp.raise_for_status()
@@ -714,8 +774,8 @@ def fetch_omdb_metadata(api_key, title, year=""):
 
     # Retry without year (sometimes year is noisy in filename)
     if year:
-        params.pop("y", None)
-        resp2 = requests.get("https://www.omdbapi.com/", params=params, timeout=20)
+        params_retry = {k: v for k, v in params.items() if k != "y"}
+        resp2 = requests.get("https://www.omdbapi.com/", params=params_retry, timeout=20)
         resp2.raise_for_status()
         data2 = resp2.json()
         if str(data2.get("Response", "False")) == "True":
@@ -948,6 +1008,14 @@ def load_workbook():
             if entry.get("id") and entry.get("data"):
                 merged[entry["id"]] = entry["data"]
 
+        # Fix corrupted series storageHdd values (if quality marker got stored as storageHdd)
+        for item in merged.values():
+            if item and item.get("sheetType") == "series":
+                storage_hdd = str(item.get("storageHdd", "")).strip()
+                # If storageHdd contains a quality marker character, it's corrupted - clear it
+                if storage_hdd in ("y", "✓"):
+                    item["storageHdd"] = ""
+
         # Ensure series sheet metadata stays enabled when any series items exist.
         has_series_items = any((it or {}).get("sheetType") == "series" for it in merged.values())
         if has_series_items and not str(effective_meta.get("seriesSheetName", "")).strip():
@@ -1149,7 +1217,9 @@ def fetch_omdb_metadata_endpoint():
       "imdbId": "tt..." (optional),
       "filename": "Movie.Name[2021][1080p]" (optional),
       "title": "..." (optional),
-      "year": "..." (optional)
+      "year": "..." (optional),
+      "type": "series" | "movie" (optional),
+      "seriesTitleFromFilename": "extracted title for series" (optional)
     }
     """
     try:
@@ -1158,9 +1228,17 @@ def fetch_omdb_metadata_endpoint():
         filename = _normalize_text(data.get("filename"))
         title = _normalize_text(data.get("title"))
         year = _normalize_text(data.get("year"))
+        type_filter = _normalize_text(data.get("type"))
+        series_title_from_filename = _normalize_text(data.get("seriesTitleFromFilename"))
 
         parsed_title, parsed_year = parse_filename_hint(filename)
-        query_title = title or parsed_title
+        
+        # For series, prefer the extracted title from filename if available
+        if type_filter == "series" and series_title_from_filename:
+            query_title = series_title_from_filename
+        else:
+            query_title = title or parsed_title
+        
         query_year = year or parsed_year
 
         if not imdb_id and not query_title:
@@ -1175,6 +1253,7 @@ def fetch_omdb_metadata_endpoint():
             "imdbId": imdb_id,
             "title": query_title,
             "year": query_year,
+            "type": type_filter,
         })
 
         return jsonify({
@@ -1183,6 +1262,7 @@ def fetch_omdb_metadata_endpoint():
                 "imdbId": imdb_id,
                 "title": query_title,
                 "year": query_year,
+                "type": type_filter,
             },
             "parsed": {
                 "title": parsed_title,
