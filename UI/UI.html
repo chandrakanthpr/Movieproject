@@ -2111,7 +2111,7 @@
 								<div class="grid-poster-wrap">${posterSlot}</div>
 								<div class="grid-info">
 									<div class="item-title">${escapeHtml(item.title)}</div>
-									<div class="item-meta">${state.activeTab === "series" ? "" : escapeHtml(item.year || t("values.dash")) + " • "}${escapeHtml(item.resolution || t("values.notAvailable"))}</div>
+                  <div class="item-meta">${state.activeTab === "series" ? escapeHtml(item.Season || t("values.dash")) + " • " : escapeHtml(item.year || t("values.dash")) + " • "}${escapeHtml(item.resolution || t("values.notAvailable"))}</div>
 								</div>
 							</article>`;
               } else {
@@ -2125,7 +2125,7 @@
 								<div>
 									<div class="item-title"${item.titleMissing ? ' style="opacity:0.6;font-style:italic;"' : ""}>${escapeHtml(item.title)}</div>
 									${item.filename ? `<div class="item-meta" style="font-size:11px;opacity:0.65;word-break:break-all;">${escapeHtml(item.filename)}</div>` : ""}
-                  <div class="item-meta">${escapeHtml(getDisplayLanguage(item))} • ${escapeHtml(item.resolution || t("values.notAvailable"))}${state.activeTab === "series" ? "" : " • " + escapeHtml(item.year || t("values.dash"))}</div>
+                  <div class="item-meta">${escapeHtml(getDisplayLanguage(item))} • ${escapeHtml(item.resolution || t("values.notAvailable"))}${state.activeTab === "series" ? " • " + escapeHtml(item.Season || t("values.dash")) : " • " + escapeHtml(item.year || t("values.dash"))}</div>
 								</div>
 								<div class="item-meta">${escapeHtml(item.storageHdd || t("values.dash"))}</div>
 							</article>`;
