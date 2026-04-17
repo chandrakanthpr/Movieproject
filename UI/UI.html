@@ -393,6 +393,32 @@
         margin-top: 4px;
       }
 
+      .hevc-badge {
+        display: inline-block;
+        background: linear-gradient(135deg, #a855f7, #7c3aed);
+        color: #fff;
+        font-size: 10px;
+        font-weight: 700;
+        padding: 2px 6px;
+        border-radius: 4px;
+        margin-left: 4px;
+        letter-spacing: 0.5px;
+      }
+
+      .hevc-badge-grid {
+        position: absolute;
+        top: 8px;
+        left: 8px;
+        background: linear-gradient(135deg, #a855f7, #7c3aed);
+        color: #fff;
+        font-size: 9px;
+        font-weight: 700;
+        padding: 3px 6px;
+        border-radius: 4px;
+        z-index: 1;
+        letter-spacing: 0.5px;
+      }
+
       .pagination {
         display: flex;
         gap: 4px;
@@ -1322,6 +1348,7 @@
           row[2] = item.year || ""; // Column C folder/year
           row[4] = item.resolution || ""; // Column E resolution
           row[5] = item.storageCase || ""; // Column F case (CORRECTED FOR SERIES)
+          row[7] = marker; // Column H quality marker (R column)
           row[8] = item.storageHdd || ""; // Column I bkup/hdd (CORRECTED FOR SERIES)
           row[9] = compactMetadataJson(item.metadataJson); // Column J data / metadata
         } else {
@@ -1856,6 +1883,19 @@
         out.push(String(value));
       }
 
+      function isHevcQuality(item) {
+        // Keep badge logic aligned with displayed quality (includes filename fallback like X5).
+        return normalize(getDisplayQuality(item)).toLowerCase() === "hevc";
+      }
+
+      function getHevcBadgeHtml() {
+        return '<span class="hevc-badge">HEVC</span>';
+      }
+
+      function getHevcBadgeGridHtml() {
+        return '<span class="hevc-badge-grid">HEVC</span>';
+      }
+
       function buildSearchCorpus(item) {
         const baseFields = [
           item.title,
@@ -2124,9 +2164,11 @@
                 const posterSlot = item.poster
                   ? `<div class="grid-poster placeholder poster-loading" data-poster-url="${escapeHtml(item.poster)}" data-imdb-id="${escapeHtml(item.imdbId)}">${escapeHtml(t("poster.loading"))}</div>`
                   : `<div class="grid-poster placeholder" data-imdb-id="${escapeHtml(item.imdbId)}">${escapeHtml(t("poster.noPoster"))}</div>`;
+                const hevcBadge = isHevcQuality(item) ? getHevcBadgeGridHtml() : "";
                 return `
 							<article class="item ${activeClass}" data-key="${item.key}">
 								<input class="item-select item-select-grid" type="checkbox" data-key="${item.key}" ${isChecked} aria-label="${escapeHtml(t("collection.selectAria", { name: item.title || item.filename || t("values.dash") }))}" />
+								${hevcBadge}
 								<div class="grid-poster-wrap">${posterSlot}</div>
 								<div class="grid-info">
 									<div class="item-title">${escapeHtml(item.title)}</div>
@@ -2137,12 +2179,13 @@
                 const posterSlot = item.poster
                   ? `<div class="list-poster placeholder poster-loading" data-poster-url="${escapeHtml(item.poster)}" data-imdb-id="${escapeHtml(item.imdbId)}">${escapeHtml(t("poster.loading"))}</div>`
                   : `<div class="list-poster placeholder" data-imdb-id="${escapeHtml(item.imdbId)}">${escapeHtml(t("poster.noPoster")).replace(" ", "<br/>")}</div>`;
+                const hevcBadge = isHevcQuality(item) ? getHevcBadgeHtml() : "";
                 return `
 							<article class="item ${activeClass}" data-key="${item.key}">
 								<input class="item-select" type="checkbox" data-key="${item.key}" ${isChecked} aria-label="${escapeHtml(t("collection.selectAria", { name: item.title || item.filename || t("values.dash") }))}" />
 								<div class="list-poster-wrap">${posterSlot}</div>
 								<div>
-									<div class="item-title"${item.titleMissing ? ' style="opacity:0.6;font-style:italic;"' : ""}>${escapeHtml(item.title)}</div>
+									<div class="item-title"${item.titleMissing ? ' style="opacity:0.6;font-style:italic;"' : ""}>${escapeHtml(item.title)}${hevcBadge}</div>
 									${item.filename ? `<div class="item-meta" style="font-size:11px;opacity:0.65;word-break:break-all;">${escapeHtml(item.filename)}</div>` : ""}
                   <div class="item-meta">${escapeHtml(getDisplayLanguage(item))} • ${escapeHtml(item.resolution || t("values.notAvailable"))}${state.activeTab === "series" ? " • " + escapeHtml(item.Season || t("values.dash")) : " • " + escapeHtml(item.year || t("values.dash"))}</div>
 								</div>
@@ -2886,7 +2929,14 @@
         if (!selectedNode) return;
 
         const titleEl = selectedNode.querySelector(".item-title");
-        if (titleEl) titleEl.textContent = item.title || "";
+        if (titleEl) {
+          if (state.viewMode === "list") {
+            const hevcBadge = isHevcQuality(item) ? getHevcBadgeHtml() : "";
+            titleEl.innerHTML = `${escapeHtml(item.title || "")}${hevcBadge}`;
+          } else {
+            titleEl.textContent = item.title || "";
+          }
+        }
 
         if (state.viewMode === "grid") {
           const metaEl = selectedNode.querySelector(".grid-info .item-meta");
