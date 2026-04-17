@@ -433,6 +433,7 @@ def item_to_row(item, header_row):
         set_cell(item.get("storageCase", ""), ["storage case", "case", "storagecase"], 5)
         set_cell(marker, ["marker", "codec", "quality marker", "x264/hevc"], 7)
         set_cell(item.get("storageHdd", ""), ["backup", "bkup", "storage hdd", "hdd", "storagehdd"], 8)
+        set_cell(item.get("storageSize", ""), ["storage size", "size", "storagesize", "gb"], 13)
         set_cell(_compact_metadata(item.get("metadataJson", "")), ["data", "metadata", "metadatajson", "omdb"], 9)
     else:
         set_cell(item.get("Movie Type", ""), ["language"], 5)
@@ -528,6 +529,19 @@ def parse_rows(rows, sheet_type):
         def g(idx, default=""):
             return str(row[idx]).strip() if len(row) > idx else default
 
+        def g_by_alias(aliases, fallback_idx=None, default=""):
+            for alias in aliases:
+                idx = header_map.get(alias)
+                if idx is not None and idx < len(row):
+                    value = str(row[idx]).strip()
+                    if value:
+                        return value
+            if fallback_idx is not None:
+                value = g(fallback_idx, default)
+                if value:
+                    return value
+            return default
+
         # Column indices differ between movies and series
         if sheet_type == "series":
             season = extract_season_from_filename(filename)
@@ -537,6 +551,11 @@ def parse_rows(rows, sheet_type):
                 legacy_hdd = g(7)
                 if legacy_hdd and legacy_hdd.lower() not in ("y", "\u2713"):
                     storage_hdd = legacy_hdd
+            storage_size = g_by_alias(
+                ["storage size", "size", "storagesize", "gb"],
+                fallback_idx=13,
+                default="",
+            )
             # Series header: ID, Title, Folder, Episodes, Res, Case, X5, R, Bkup, Data, ...
             item_data = {
                 "key":          f"{title or filename}__{i}",
@@ -550,7 +569,7 @@ def parse_rows(rows, sheet_type):
                 "Quality":      quality,
                 "storageCase":  g(5),  # Case
                 "storageHdd":   storage_hdd,  # Bkup
-                "storageSize":  "",
+                "storageSize":  storage_size,
                 "myRating":     "",
                 "imdbId":       imdb_id,
                 "poster":       poster,
@@ -1351,7 +1370,7 @@ def add_movie():
             new_item["language"] = _normalize_text(data.get("Movie Type"))
         else:
             season = _normalize_text(data.get("Season")) or extract_season_from_filename(filename) or ""
-            new_item["storageSize"] = ""
+            new_item["storageSize"] = _normalize_text(data.get("storageSize"))
             if season:
                 new_item["Season"] = season
 

@@ -2726,7 +2726,8 @@
 							${isSeries ? `<input id=\"addNewStorageCase\" class=\"detail-input\" type=\"text\" placeholder=\"e.g. SS6\" />` : `<select id=\"addNewStorageCase\" class=\"detail-input\">${storageCaseOpts}</select>`}
 							<div class="label">Storage HDD</div>
 							${isSeries ? `<input id=\"addNewStorageHdd\" class=\"detail-input\" type=\"text\" placeholder=\"e.g. 2\" />` : `<select id=\"addNewStorageHdd\" class=\"detail-input\">${storageHddOpts}</select>`}
-							${isSeries ? "" : `<div class=\"label\">Storage Size</div><input id=\"addNewStorageSize\" class=\"detail-input\" type=\"text\" placeholder=\"e.g. 3.5\" />`}
+              <div class="label">Storage Size</div>
+              <input id="addNewStorageSize" class="detail-input" type="text" placeholder="e.g. 3.5" />
 						</div>
 						<div style="margin-top:14px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
 							<button id="addNewSaveBtn" class="btn primary">Save</button>
@@ -2877,7 +2878,7 @@
               Quality: qualitySel?.value || "",
               storageCase: storageCaseSel?.value || "",
               storageHdd: storageHddSel?.value || "",
-              storageSize: isSeries ? "" : storageSizeInput?.value.trim() || "",
+              storageSize: storageSizeInput?.value.trim() || "",
               Season: isSeries ? seasonInput?.value.trim() || "" : "",
             };
 
@@ -3081,8 +3082,8 @@
 							<div class="label">${escapeHtml(t("details.movieType"))}</div>${valueCell("Movie Type")}` : "";
         const qualityRow = `
 							<div class="label">${escapeHtml(t("details.quality"))}</div>${valueCell("Quality")}`;
-        const storageSizeRow = isMovie ? `
-							<div class="label">${escapeHtml(t("details.storageSize"))}</div>${valueCell("storageSize")}` : "";
+        const storageSizeRow = `
+      							<div class="label">${escapeHtml(t("details.storageSize"))}</div>${valueCell("storageSize")}`;
 
         el.detailsContainer.innerHTML = `
 				<div class="detail-card">
