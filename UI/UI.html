@@ -2786,9 +2786,10 @@
             }
 
             let sourceName = "";
+            let dirHandle = null;
             if (typeof window.showDirectoryPicker === "function") {
               try {
-                const dirHandle = await window.showDirectoryPicker();
+                dirHandle = await window.showDirectoryPicker();
                 sourceName = normalize(dirHandle?.name || "");
               } catch (error) {
                 // User cancelled or API unavailable in this context.
@@ -2806,6 +2807,31 @@
             if (yearInput) yearInput.value = "";
             if (seasonInput) seasonInput.value = "";
             applyParsed(sourceName, true);
+
+            // Compute folder size recursively
+            if (storageSizeInput && dirHandle) {
+              storageSizeInput.value = "...";
+              (async () => {
+                try {
+                  let totalBytes = 0;
+                  const sumDir = async (dh) => {
+                    for await (const entry of dh.values()) {
+                      if (entry.kind === "file") {
+                        const f = await entry.getFile();
+                        totalBytes += f.size;
+                      } else if (entry.kind === "directory") {
+                        await sumDir(entry);
+                      }
+                    }
+                  };
+                  await sumDir(dirHandle);
+                  const gb = totalBytes / (1024 ** 3);
+                  storageSizeInput.value = gb >= 0.1 ? gb.toFixed(2) : (totalBytes / (1024 ** 2)).toFixed(0) + " MB";
+                } catch (_) {
+                  storageSizeInput.value = "";
+                }
+              })();
+            }
           });
 
           fileBrowse.addEventListener("change", () => {
@@ -2826,6 +2852,14 @@
             if (yearInput) yearInput.value = "";
             if (seasonInput) seasonInput.value = "";
             applyParsed(sourceName, true);
+
+            // Auto-fill storage size from selected folder files (fallback path)
+            if (isSeries && storageSizeInput && fileBrowse.files.length > 0) {
+              let totalBytes = 0;
+              for (const f of fileBrowse.files) totalBytes += f.size;
+              const gb = totalBytes / (1024 ** 3);
+              storageSizeInput.value = gb >= 0.1 ? gb.toFixed(2) : (totalBytes / (1024 ** 2)).toFixed(0) + " MB";
+            }
           });
         }
 
