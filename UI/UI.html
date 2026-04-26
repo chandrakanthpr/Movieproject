@@ -2835,9 +2835,10 @@
           });
 
           fileBrowse.addEventListener("change", () => {
-            const file = fileBrowse.files && fileBrowse.files[0];
-            if (!file) return;
+            const files = fileBrowse.files;
+            if (!files || files.length === 0) return;
 
+            const file = files[0];
             let sourceName = "";
             if (isSeries) {
               const rel = file.webkitRelativePath || "";
@@ -2853,10 +2854,10 @@
             if (seasonInput) seasonInput.value = "";
             applyParsed(sourceName, true);
 
-            // Auto-fill storage size from selected folder files (fallback path)
-            if (isSeries && storageSizeInput && fileBrowse.files.length > 0) {
+            // Calculate actual file size from selected files
+            if (storageSizeInput && files.length > 0) {
               let totalBytes = 0;
-              for (const f of fileBrowse.files) totalBytes += f.size;
+              for (const f of files) totalBytes += f.size;
               const gb = totalBytes / (1024 ** 3);
               storageSizeInput.value = gb >= 0.1 ? gb.toFixed(2) : (totalBytes / (1024 ** 2)).toFixed(0) + " MB";
             }
