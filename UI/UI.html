@@ -552,6 +552,29 @@
         font-size: 14px;
       }
 
+      .season-chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .season-chip {
+        border: 1px solid var(--border);
+        background: #111827;
+        color: var(--text);
+        border-radius: 999px;
+        padding: 4px 10px;
+        font-size: 12px;
+        font-weight: 700;
+        cursor: pointer;
+      }
+
+      .season-chip.active {
+        background: var(--primary);
+        border-color: var(--primary-2);
+        color: #062b14;
+      }
+
       .detail-input {
         width: 100%;
         background: #0b1220;
@@ -1315,6 +1338,48 @@
           .replace(/\s+/g, " ")
           .trim();
         return cleaned;
+      }
+
+      function getSeasonLabel(item) {
+        const season = normalize(item?.Season);
+        if (season) return season.toUpperCase();
+        const fromFilename = normalize(item?.filename).match(/\bS\d+\b/i);
+        if (fromFilename && fromFilename[0]) return fromFilename[0].toUpperCase();
+        return "Unknown";
+      }
+
+      function getSeasonSortValue(label) {
+        const match = normalize(label).match(/\bS(\d+)\b/i);
+        if (!match) return Number.MAX_SAFE_INTEGER;
+        return Number(match[1]);
+      }
+
+      function getAvailableSeasonEntries(selectedSeriesItem) {
+        if (!selectedSeriesItem || selectedSeriesItem.sheetType !== "series") return [];
+        const imdbId = normalize(getEffectiveImdbId(selectedSeriesItem));
+        if (!imdbId) return [];
+
+        const grouped = new Map();
+        state.series.forEach((entry) => {
+          if (normalize(getEffectiveImdbId(entry)) !== imdbId) return;
+          const label = getSeasonLabel(entry);
+          const existing = grouped.get(label);
+          if (!existing || Number(entry.rowIndex || 0) < Number(existing.rowIndex || 0)) {
+            grouped.set(label, entry);
+          }
+        });
+
+        return Array.from(grouped.entries())
+          .map(([label, entry]) => ({
+            label,
+            key: entry.key,
+            rowIndex: Number(entry.rowIndex || 0),
+            sort: getSeasonSortValue(label),
+          }))
+          .sort((a, b) => {
+            if (a.sort !== b.sort) return a.sort - b.sort;
+            return a.rowIndex - b.rowIndex;
+          });
       }
 
       function syncItemToStateRows(item) {
@@ -3113,6 +3178,20 @@
 							<div class="label">${escapeHtml(t("details.yearOfRelease"))}</div>${valueCell("year")}` : "";
         const seasonRow = !isMovie ? `
       							<div class="label">Season</div>${valueCell("Season")}` : "";
+        const availableSeasons = !isMovie
+          ? getAvailableSeasonEntries(item)
+          : [];
+        const seasonsRow = !isMovie ? `
+              <div class="label">Available Seasons</div>
+              <div class="season-chips">${
+                availableSeasons.length
+                  ? availableSeasons
+                      .map(
+                        (entry) => `<button type="button" class="season-chip ${entry.key === item.key ? "active" : ""}" data-season-key="${escapeHtml(entry.key)}">${escapeHtml(entry.label)}</button>`,
+                      )
+                      .join("")
+                  : `<span class="item-meta">${escapeHtml(t("values.dash"))}</span>`
+              }</div>` : "";
         const movieTypeRow = isMovie ? `
 							<div class="label">${escapeHtml(t("details.movieType"))}</div>${valueCell("Movie Type")}` : "";
         const qualityRow = `
@@ -3128,7 +3207,7 @@
 					<div class="detail-content">
 						<h2 class="detail-title">${escapeHtml(item.title)}</h2>
 						<div class="detail-grid">${yearRow}
-              <div class="label">${escapeHtml(t("details.filename"))}</div>${valueCell("filename")}${seasonRow}${movieTypeRow}
+              <div class="label">${escapeHtml(t("details.filename"))}</div>${valueCell("filename")}${seasonRow}${seasonsRow}${movieTypeRow}
 							<div class="label">${escapeHtml(t("details.resolution"))}</div>${valueCell("resolution")}${qualityRow}
 							<div class="label">${escapeHtml(t("details.language"))}</div>${valueCell("language")}
 							<div class="label">${escapeHtml(t("details.storageCase"))}</div>${valueCell("storageCase")}
@@ -3222,6 +3301,18 @@
               input.addEventListener("change", handler);
             });
         }
+
+        el.detailsContainer
+          .querySelectorAll("[data-season-key]")
+          .forEach((node) => {
+            node.addEventListener("click", (event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              const seasonKey = node.getAttribute("data-season-key");
+              if (!seasonKey || seasonKey === state.selectedKey) return;
+              selectItemByKey(seasonKey, { focusContainer: true });
+            });
+          });
 
         // Kick off async poster load + cache (does not block UI)
         if (hasPoster) {
