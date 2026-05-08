@@ -812,6 +812,36 @@
       const UI_VIEW_MODE_STORAGE_KEY = "movieUiViewMode";
       const UI_PAGE_STORAGE_KEY = "movieUiPage";
       const UI_TITLE_ONLY_STORAGE_KEY = "movieUiTitleOnly";
+      const SERIES_FOLDER_PICKER_ID = "movieproject-series-folder-picker";
+      let lastSeriesFolderHandle = null;
+
+      async function showRememberedSeriesDirectoryPicker() {
+        if (typeof window.showDirectoryPicker !== "function") return null;
+
+        const baseOptions = {
+          id: SERIES_FOLDER_PICKER_ID,
+          mode: "read",
+        };
+
+        if (lastSeriesFolderHandle) {
+          try {
+            const handle = await window.showDirectoryPicker({
+              ...baseOptions,
+              startIn: lastSeriesFolderHandle,
+            });
+            lastSeriesFolderHandle = handle;
+            return handle;
+          } catch (error) {
+            if (error?.name !== "DataError") {
+              throw error;
+            }
+          }
+        }
+
+        const handle = await window.showDirectoryPicker(baseOptions);
+        lastSeriesFolderHandle = handle;
+        return handle;
+      }
 
       function getPersistedActiveTab() {
         if (URL_TAB === "movies" || URL_TAB === "series") return URL_TAB;
@@ -3033,7 +3063,7 @@
             let dirHandle = null;
             if (typeof window.showDirectoryPicker === "function") {
               try {
-                dirHandle = await window.showDirectoryPicker();
+                dirHandle = await showRememberedSeriesDirectoryPicker();
                 sourceName = normalize(dirHandle?.name || "");
               } catch (error) {
                 // User cancelled or API unavailable in this context.
@@ -3524,12 +3554,28 @@
             setFieldAndInput("storageSize", parsed.storageSize || "");
           };
 
+          const setSeriesStorageSizeFromBytes = (totalBytes) => {
+            const bytes = Number(totalBytes || 0);
+            if (!Number.isFinite(bytes) || bytes <= 0) return;
+            const gb = bytes / (1024 ** 3);
+            const sizeValue =
+              gb >= 0.1
+                ? gb.toFixed(2)
+                : (bytes / (1024 ** 2)).toFixed(0) + " MB";
+            onDetailFieldInput(item, "storageSize", sizeValue);
+            const storageSizeInput = el.detailsContainer.querySelector(
+              '[data-edit-field="storageSize"]',
+            );
+            if (storageSizeInput) storageSizeInput.value = sizeValue;
+          };
+
           if (seriesBrowseBtn && seriesFolderBrowse && item.sheetType === "series") {
             seriesBrowseBtn.addEventListener("click", async () => {
               let sourceName = "";
+              let dirHandle = null;
               if (typeof window.showDirectoryPicker === "function") {
                 try {
-                  const dirHandle = await window.showDirectoryPicker();
+                  dirHandle = await showRememberedSeriesDirectoryPicker();
                   sourceName = normalize(dirHandle?.name || "");
                 } catch (_) {
                   // User canceled picker.
@@ -3542,6 +3588,26 @@
               }
 
               applySeriesFolderSelection(sourceName);
+
+              if (dirHandle) {
+                try {
+                  let totalBytes = 0;
+                  const sumDir = async (dh) => {
+                    for await (const entry of dh.values()) {
+                      if (entry.kind === "file") {
+                        const f = await entry.getFile();
+                        totalBytes += f.size;
+                      } else if (entry.kind === "directory") {
+                        await sumDir(entry);
+                      }
+                    }
+                  };
+                  await sumDir(dirHandle);
+                  setSeriesStorageSizeFromBytes(totalBytes);
+                } catch (_) {
+                  // Keep parsed storage size when folder traversal is blocked.
+                }
+              }
             });
 
             seriesFolderBrowse.addEventListener("change", () => {
@@ -3550,6 +3616,10 @@
               const rel = files[0].webkitRelativePath || "";
               const sourceName = rel ? rel.split("/")[0] : "";
               applySeriesFolderSelection(sourceName);
+
+              let totalBytes = 0;
+              for (const f of files) totalBytes += f.size;
+              setSeriesStorageSizeFromBytes(totalBytes);
             });
           }
 
