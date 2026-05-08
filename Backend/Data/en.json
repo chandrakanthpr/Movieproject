@@ -33,7 +33,8 @@
     },
     "view": {
       "list": "List",
-      "icons": "Icons"
+      "icons": "Icons",
+      "compressed": "Compressed"
     },
     "collection": {
       "ariaLabel": "Collection items",

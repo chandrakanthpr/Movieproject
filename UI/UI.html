@@ -569,10 +569,21 @@
         cursor: pointer;
       }
 
+      .season-chip.tone-red {
+        color: #f87171;
+      }
+
+      .season-chip.tone-yellow {
+        color: #facc15;
+      }
+
+      .season-chip.tone-blue {
+        color: #60a5fa;
+      }
+
       .season-chip.active {
         background: var(--primary);
         border-color: var(--primary-2);
-        color: #062b14;
       }
 
       .detail-input {
@@ -740,6 +751,7 @@
             <div class="view-toggle">
               <button id="listViewBtn" class="btn primary"></button>
               <button id="gridViewBtn" class="btn"></button>
+              <button id="compressedViewBtn" class="btn" style="display: none"></button>
             </div>
             <span id="countInfo"></span>
           </div>
@@ -813,7 +825,21 @@
         const saved = (localStorage.getItem(UI_VIEW_MODE_STORAGE_KEY) || "")
           .trim()
           .toLowerCase();
-        return saved === "grid" ? "grid" : "list";
+        return saved === "grid" || saved === "compressed" ? saved : "list";
+      }
+
+      function normalizeViewModeForTab(tab, mode) {
+        if (mode === "list" || mode === "grid") return mode;
+        if (tab === "series" && mode === "compressed") return mode;
+        return "grid";
+      }
+
+      function isGridLikeViewMode(mode = state.viewMode) {
+        return mode === "grid" || mode === "compressed";
+      }
+
+      function getCurrentPageSize(mode = state.viewMode) {
+        return isGridLikeViewMode(mode) ? GRID_PAGE_SIZE : LIST_PAGE_SIZE;
       }
 
       function getPersistedTitleOnlySearch() {
@@ -862,7 +888,10 @@
       const state = {
         resources: {},
         activeTab: getPersistedActiveTab(),
-        viewMode: getPersistedViewMode(),
+        viewMode: normalizeViewModeForTab(
+          getPersistedActiveTab(),
+          getPersistedViewMode(),
+        ),
         movies: [],
         series: [],
         movieRows: [],
@@ -897,6 +926,7 @@
         tabSeries: document.getElementById("tabSeries"),
         listViewBtn: document.getElementById("listViewBtn"),
         gridViewBtn: document.getElementById("gridViewBtn"),
+        compressedViewBtn: document.getElementById("compressedViewBtn"),
         searchInput: document.getElementById("searchInput"),
         titleOnlyCheckbox: document.getElementById("titleOnlyCheckbox"),
         titleOnlyLabel: document.getElementById("titleOnlyLabel"),
@@ -980,6 +1010,7 @@
         setText(el.deleteSelectedBtn, t("moviesPanel.delete"));
         setText(el.listViewBtn, t("view.list"));
         setText(el.gridViewBtn, t("view.icons"));
+        setText(el.compressedViewBtn, t("view.compressed"));
         setText(el.countInfo, t("moviesPanel.countLoading"));
         if (el.itemsContainer)
           el.itemsContainer.setAttribute(
@@ -1272,14 +1303,22 @@
         return normalize(meta.Plot || meta.plot || "");
       }
 
-      function getDisplayQuality(item) {
+      function getQualityKey(item) {
         const explicit = normalize(item?.Quality).toLowerCase();
+        if (explicit === "x265") return "hevc";
+        if (explicit === "h264") return "x264";
         if (explicit) return explicit;
 
         const filename = normalize(item?.filename);
-        if (!filename) return t("values.dash");
+        if (!filename) return "";
         if (/\(X5\)|\[X5\]|\bX5\b/i.test(filename)) return "hevc";
         if (/\bx264\b|\bh264\b/i.test(filename)) return "x264";
+        return "";
+      }
+
+      function getDisplayQuality(item) {
+        const qualityKey = getQualityKey(item);
+        if (qualityKey) return qualityKey;
         return t("values.dash");
       }
 
@@ -1354,14 +1393,37 @@
         return Number(match[1]);
       }
 
+      function getSeriesIdentityKey(item) {
+        if (!item || item.sheetType !== "series") return "";
+
+        const meta = getMetadataObject(item);
+        const titleKey = normalizeSearchText(
+          meta.seriesTitle ||
+            meta.Title ||
+            meta.title ||
+            item.title ||
+            extractSeriesTitleFromFilename(item.filename) ||
+            "",
+        );
+        const yearKey = normalizeSearchText(
+          meta.Year || meta.year || item.year || "",
+        ).replace(/\s+/g, "");
+        const imdbKey = normalize(getEffectiveImdbId(item)).toLowerCase();
+
+        if (titleKey) {
+          return `${titleKey}|${yearKey || imdbKey || ""}`;
+        }
+        return imdbKey;
+      }
+
       function getAvailableSeasonEntries(selectedSeriesItem) {
         if (!selectedSeriesItem || selectedSeriesItem.sheetType !== "series") return [];
-        const imdbId = normalize(getEffectiveImdbId(selectedSeriesItem));
-        if (!imdbId) return [];
+        const seriesKey = getSeriesIdentityKey(selectedSeriesItem);
+        if (!seriesKey) return [];
 
         const grouped = new Map();
         state.series.forEach((entry) => {
-          if (normalize(getEffectiveImdbId(entry)) !== imdbId) return;
+          if (getSeriesIdentityKey(entry) !== seriesKey) return;
           const label = getSeasonLabel(entry);
           const existing = grouped.get(label);
           if (!existing || Number(entry.rowIndex || 0) < Number(existing.rowIndex || 0)) {
@@ -1375,6 +1437,18 @@
             key: entry.key,
             rowIndex: Number(entry.rowIndex || 0),
             sort: getSeasonSortValue(label),
+            tone: (() => {
+              const resolution = normalize(entry?.resolution).toLowerCase();
+              const quality = getQualityKey(entry);
+              const isLowResolution = resolution === "sd" || resolution === "720p";
+
+              if (isLowResolution) {
+                if (!quality || quality === "x264") return "red";
+                if (quality === "hevc") return "yellow";
+              }
+
+              return "blue";
+            })(),
           }))
           .sort((a, b) => {
             if (a.sort !== b.sort) return a.sort - b.sort;
@@ -1498,8 +1572,49 @@
           });
       }
 
+      function getCompressedSelectionRepresentative(key = state.selectedKey) {
+        if (
+          !key ||
+          state.activeTab !== "series" ||
+          state.viewMode !== "compressed"
+        ) {
+          return null;
+        }
+
+        const selectedItem = state.series.find((item) => item.key === key);
+        if (!selectedItem) return null;
+
+        const seriesKey = getSeriesIdentityKey(selectedItem);
+        if (!seriesKey) return null;
+
+        return (
+          state.filtered.find(
+            (item) =>
+              item.sheetType === "series" &&
+              getSeriesIdentityKey(item) === seriesKey,
+          ) || null
+        );
+      }
+
+      function getVisibleSelectedKey(key = state.selectedKey) {
+        if (!key) return null;
+        if (state.filtered.some((item) => item.key === key)) return key;
+        return getCompressedSelectionRepresentative(key)?.key || null;
+      }
+
       function getSelectedItem() {
-        return state.filtered.find((i) => i.key === state.selectedKey) || null;
+        if (!state.selectedKey) return null;
+
+        const directMatch = state.filtered.find(
+          (item) => item.key === state.selectedKey,
+        );
+        if (directMatch) return directMatch;
+
+        if (getCompressedSelectionRepresentative(state.selectedKey)) {
+          return state.series.find((item) => item.key === state.selectedKey) || null;
+        }
+
+        return null;
       }
 
       function isMetadataMissingForItem(item) {
@@ -1866,7 +1981,7 @@
             const bStarts = normalizeSearchText(b).startsWith(q);
             if (aStarts && !bStarts) return -1;
             if (!aStarts && bStarts) return 1;
-            return a.localeCompare(b);
+            return a.localeCompare(b, undefined, { sensitivity: "base" });
           })
           .slice(0, 8);
 
@@ -1923,9 +2038,34 @@
         return state.activeTab === "movies" ? state.movies : state.series;
       }
 
+      function getCompressedSeriesItems(items) {
+        if (state.activeTab !== "series" || state.viewMode !== "compressed") {
+          return items;
+        }
+
+        const grouped = new Map();
+        const passthrough = [];
+        items.forEach((item) => {
+          const seriesKey = getSeriesIdentityKey(item);
+          if (!seriesKey) {
+            passthrough.push(item);
+            return;
+          }
+
+          const existing = grouped.get(seriesKey);
+          if (!existing || Number(item.rowIndex || 0) < Number(existing.rowIndex || 0)) {
+            grouped.set(seriesKey, item);
+          }
+        });
+
+        return [...grouped.values(), ...passthrough].sort(
+          (a, b) => Number(a.rowIndex || 0) - Number(b.rowIndex || 0),
+        );
+      }
+
       function normalizeSearchText(value) {
         return normalize(value)
-          .toLowerCase()
+          .toLocaleLowerCase()
           .replace(/[_\.\-\/]+/g, " ")
           .replace(/[^a-z0-9\s]/g, " ")
           .replace(/\s+/g, " ")
@@ -2038,6 +2178,8 @@
           ? [...source]
           : source.filter((item) => isElasticSearchMatch(q, item, titleOnly));
 
+        state.filtered = getCompressedSeriesItems(state.filtered);
+
         if (resetPage) {
           state.page = 1;
         }
@@ -2046,14 +2188,12 @@
       }
 
       function totalPages() {
-        const pageSize =
-          state.viewMode === "grid" ? GRID_PAGE_SIZE : LIST_PAGE_SIZE;
+        const pageSize = getCurrentPageSize();
         return Math.max(1, Math.ceil(state.filtered.length / pageSize));
       }
 
       function currentPageItems() {
-        const pageSize =
-          state.viewMode === "grid" ? GRID_PAGE_SIZE : LIST_PAGE_SIZE;
+        const pageSize = getCurrentPageSize();
         const start = (state.page - 1) * pageSize;
         return state.filtered.slice(start, start + pageSize);
       }
@@ -2065,10 +2205,11 @@
       }
 
       function scrollSelectedItemIntoView() {
-        if (!state.selectedKey) return;
+        const visibleSelectedKey = getVisibleSelectedKey();
+        if (!visibleSelectedKey) return;
         const selectedNode = Array.from(
           el.itemsContainer.querySelectorAll(".item"),
-        ).find((node) => node.dataset.key === state.selectedKey);
+        ).find((node) => node.dataset.key === visibleSelectedKey);
         if (selectedNode) {
           selectedNode.scrollIntoView({ block: "nearest", inline: "nearest" });
         }
@@ -2080,7 +2221,7 @@
         state.isEditingDetails = false;
         state.isMetadataCollapsed = true;
         state.selectedKey = key;
-        const selected = state.filtered.find((item) => item.key === key);
+        const selected = getSelectedItem();
         persistSelection(selected);
         render();
         renderDetails();
@@ -2131,8 +2272,7 @@
         const pageItems = currentPageItems();
         if (!pageItems.length) return false;
 
-        const pageSize =
-          state.viewMode === "grid" ? GRID_PAGE_SIZE : LIST_PAGE_SIZE;
+        const pageSize = getCurrentPageSize();
         const pageStart = (state.page - 1) * pageSize;
         const isReverse = key === "ArrowUp" || key === "ArrowLeft";
         let currentGlobalIndex = state.filtered.findIndex(
@@ -2154,7 +2294,7 @@
         }
 
         let delta = 0;
-        if (state.viewMode === "grid") {
+        if (isGridLikeViewMode()) {
           const itemNodes = Array.from(
             el.itemsContainer.querySelectorAll(".item"),
           );
@@ -2210,8 +2350,11 @@
           el.gotoPageInput.max = String(pages);
         }
 
-        el.itemsContainer.className = `items ${state.viewMode}`;
+        el.itemsContainer.className = isGridLikeViewMode()
+          ? `items grid${state.viewMode === "compressed" ? " compressed" : ""}`
+          : "items list";
         const items = currentPageItems();
+        const visibleSelectedKey = getVisibleSelectedKey();
 
         if (!items.length) {
           el.itemsContainer.innerHTML = statusMarkup(
@@ -2221,15 +2364,19 @@
           el.itemsContainer.innerHTML = items
             .map((item) => {
               const activeClass =
-                state.selectedKey === item.key ? "active" : "";
+                visibleSelectedKey === item.key ? "active" : "";
               const isChecked = state.selectedItemKeys.has(item.key)
                 ? "checked"
                 : "";
-              if (state.viewMode === "grid") {
+              if (isGridLikeViewMode()) {
                 const posterSlot = item.poster
                   ? `<div class="grid-poster placeholder poster-loading" data-poster-url="${escapeHtml(item.poster)}" data-imdb-id="${escapeHtml(item.imdbId)}">${escapeHtml(t("poster.loading"))}</div>`
                   : `<div class="grid-poster placeholder" data-imdb-id="${escapeHtml(item.imdbId)}">${escapeHtml(t("poster.noPoster"))}</div>`;
-                const hevcBadge = isHevcQuality(item) ? getHevcBadgeGridHtml() : "";
+                const showSeriesGridMeta = state.activeTab !== "series";
+                const hevcBadge =
+                  state.activeTab !== "series" && isHevcQuality(item)
+                    ? getHevcBadgeGridHtml()
+                    : "";
                 return `
 							<article class="item ${activeClass}" data-key="${item.key}">
 								<input class="item-select item-select-grid" type="checkbox" data-key="${item.key}" ${isChecked} aria-label="${escapeHtml(t("collection.selectAria", { name: item.title || item.filename || t("values.dash") }))}" />
@@ -2237,7 +2384,7 @@
 								<div class="grid-poster-wrap">${posterSlot}</div>
 								<div class="grid-info">
 									<div class="item-title">${escapeHtml(item.title)}</div>
-                  <div class="item-meta">${state.activeTab === "series" ? escapeHtml(item.Season || t("values.dash")) + " • " : escapeHtml(item.year || t("values.dash")) + " • "}${escapeHtml(item.resolution || t("values.notAvailable"))}</div>
+									${showSeriesGridMeta ? `<div class="item-meta">${escapeHtml(item.year || t("values.dash"))} • ${escapeHtml(item.resolution || t("values.notAvailable"))}</div>` : ""}
 								</div>
 							</article>`;
               } else {
@@ -2267,13 +2414,11 @@
         el.lastBtn.disabled = state.page >= pages;
 
         attachItemHandlers();
-        if (state.viewMode === "grid") loadGridPosters();
+        if (isGridLikeViewMode()) loadGridPosters();
         if (state.viewMode === "list") loadListPosters();
 
-        const selectedInFiltered = state.filtered.find(
-          (i) => i.key === state.selectedKey,
-        );
-        if (!selectedInFiltered) {
+        const selectedItem = getSelectedItem();
+        if (!selectedItem) {
           state.selectedKey = null;
           el.detailsContainer.innerHTML = statusMarkup(
             t("details.selectPrompt"),
@@ -2723,12 +2868,23 @@
       function parseSeriesFolderForForm(folderName) {
         const raw = normalize(folderName);
         if (!raw)
-          return { title: "", season: "", resolution: "", quality: "x264" };
+          return {
+            title: "",
+            season: "",
+            resolution: "",
+            quality: "x264",
+            qualityDetected: false,
+            storageSize: "",
+          };
 
         const name = raw.replace(/[\\/]+/g, " ").trim();
-        const seasonMatch = name.match(/\bS\d+\b/i);
-        const resolutionMatch = name.match(/\((\d{3,4}p|SD)\)/i);
-        const quality = /\(X5\)|\[X5\]|\bX5\b/i.test(name) ? "hevc" : "x264";
+        const seasonMatch = name.match(/S\d{1,2}/i);
+        const resolutionMatch = name.match(/(?:\(|\[)?\s*(2160p|1080p|720p|480p|360p|SD)\s*(?:\)|\])?/i);
+        const hasHevcToken = /\(X5\)|\[X5\]|\bX5\b|\bHEVC\b|\bX265\b|\bH\.265\b/i.test(name);
+        const hasX264Token = /\bX264\b|\bH\.264\b/i.test(name);
+        const quality = hasHevcToken ? "hevc" : "x264";
+        const qualityDetected = hasHevcToken || hasX264Token;
+        const storageSizeMatch = name.match(/(?:\(|\[)?\s*(\d+(?:\.\d+)?)\s*(TB|TIB|GB|GIB|MB|MIB)\s*(?:\)|\])?/i);
 
         let titlePart = name;
         if (seasonMatch && seasonMatch.index >= 0) {
@@ -2741,7 +2897,30 @@
         const title = titlePart.replace(/[._-]+/g, " ").replace(/\s+/g, " ").trim();
         const season = seasonMatch ? seasonMatch[0].toUpperCase() : "";
         const resolution = resolutionMatch ? resolutionMatch[1] : "";
-        return { title, season, resolution, quality };
+
+        let storageSize = "";
+        if (storageSizeMatch) {
+          const amount = Number(storageSizeMatch[1]);
+          const unit = (storageSizeMatch[2] || "").toUpperCase();
+          if (!Number.isNaN(amount) && amount > 0) {
+            if (unit === "TB" || unit === "TIB") {
+              storageSize = (amount * 1024).toFixed(2).replace(/\.00$/, "").replace(/(\.\d)0$/, "$1");
+            } else if (unit === "GB" || unit === "GIB") {
+              storageSize = amount.toFixed(2).replace(/\.00$/, "").replace(/(\.\d)0$/, "$1");
+            } else {
+              storageSize = Math.round(amount) + " MB";
+            }
+          }
+        }
+
+        return {
+          title,
+          season,
+          resolution,
+          quality,
+          qualityDetected,
+          storageSize,
+        };
       }
 
       function renderAddNewPanel() {
@@ -3002,8 +3181,7 @@
                     el.suggestionsDropdown.classList.remove("show");
                   applyFilterAndRender(true, false);
 
-                  const pageSize =
-                    state.viewMode === "grid" ? GRID_PAGE_SIZE : LIST_PAGE_SIZE;
+                  const pageSize = getCurrentPageSize();
                   const itemIdx = state.filtered.findIndex(
                     (i) =>
                       Number(i.rowIndex) === newRowIdx &&
@@ -3039,7 +3217,7 @@
           }
         }
 
-        if (state.viewMode === "grid") {
+        if (isGridLikeViewMode()) {
           const metaEl = selectedNode.querySelector(".grid-info .item-meta");
           if (metaEl)
             metaEl.textContent = `${item.year || t("values.dash")} • ${item.resolution || t("values.notAvailable")}`;
@@ -3169,6 +3347,13 @@
               return `<select class="detail-input" data-edit-field="storageCase">${opts}</select>`;
             }
           }
+          if (field === "filename" && item.sheetType === "series") {
+            return `<div style="display:flex;gap:6px;align-items:center;min-width:0;">
+              <input class="detail-input" data-edit-field="filename" value="${escapeHtml(item[field] || "")}" style="flex:1;min-width:0;" />
+              <input id="editSeriesFolderBrowse" type="file" style="display:none;" webkitdirectory directory multiple />
+              <button id="editSeriesBrowseBtn" class="btn" type="button">Select Folder…</button>
+            </div>`;
+          }
           return `<input class="detail-input" data-edit-field="${field}" value="${escapeHtml(item[field] || "")}" />`;
         };
 
@@ -3187,7 +3372,7 @@
                 availableSeasons.length
                   ? availableSeasons
                       .map(
-                        (entry) => `<button type="button" class="season-chip ${entry.key === item.key ? "active" : ""}" data-season-key="${escapeHtml(entry.key)}">${escapeHtml(entry.label)}</button>`,
+                        (entry) => `<button type="button" class="season-chip tone-${entry.tone} ${entry.key === item.key ? "active" : ""}" data-season-key="${escapeHtml(entry.key)}">${escapeHtml(entry.label)}</button>`,
                       )
                       .join("")
                   : `<span class="item-meta">${escapeHtml(t("values.dash"))}</span>`
@@ -3300,6 +3485,83 @@
               input.addEventListener("input", handler);
               input.addEventListener("change", handler);
             });
+
+          const seriesBrowseBtn = el.detailsContainer.querySelector(
+            "#editSeriesBrowseBtn",
+          );
+          const seriesFolderBrowse = el.detailsContainer.querySelector(
+            "#editSeriesFolderBrowse",
+          );
+          const seriesFilenameInput = el.detailsContainer.querySelector(
+            '[data-edit-field="filename"]',
+          );
+
+          const applySeriesFolderSelection = (
+            sourceName,
+            { setFilename = true } = {},
+          ) => {
+            const rawName = normalize(sourceName);
+            if (!rawName) return;
+
+            const parsed = parseSeriesFolderForForm(rawName);
+            const setFieldAndInput = (field, value) => {
+              if (!normalize(value)) return;
+              onDetailFieldInput(item, field, value);
+              const inputNode = el.detailsContainer.querySelector(
+                `[data-edit-field="${field}"]`,
+              );
+              if (inputNode) inputNode.value = value;
+            };
+
+            if (setFilename) {
+              setFieldAndInput("filename", rawName);
+            }
+            setFieldAndInput("Season", parsed.season || "");
+            setFieldAndInput("resolution", parsed.resolution || "");
+            if (parsed.qualityDetected) {
+              setFieldAndInput("Quality", parsed.quality || "");
+            }
+            setFieldAndInput("storageSize", parsed.storageSize || "");
+          };
+
+          if (seriesBrowseBtn && seriesFolderBrowse && item.sheetType === "series") {
+            seriesBrowseBtn.addEventListener("click", async () => {
+              let sourceName = "";
+              if (typeof window.showDirectoryPicker === "function") {
+                try {
+                  const dirHandle = await window.showDirectoryPicker();
+                  sourceName = normalize(dirHandle?.name || "");
+                } catch (_) {
+                  // User canceled picker.
+                }
+              }
+
+              if (!sourceName) {
+                seriesFolderBrowse.click();
+                return;
+              }
+
+              applySeriesFolderSelection(sourceName);
+            });
+
+            seriesFolderBrowse.addEventListener("change", () => {
+              const files = seriesFolderBrowse.files;
+              if (!files || files.length === 0) return;
+              const rel = files[0].webkitRelativePath || "";
+              const sourceName = rel ? rel.split("/")[0] : "";
+              applySeriesFolderSelection(sourceName);
+            });
+          }
+
+          if (seriesFilenameInput && item.sheetType === "series") {
+            const autoFillFromTypedFilename = () => {
+              applySeriesFolderSelection(seriesFilenameInput.value || "", {
+                setFilename: false,
+              });
+            };
+            seriesFilenameInput.addEventListener("input", autoFillFromTypedFilename);
+            seriesFilenameInput.addEventListener("change", autoFillFromTypedFilename);
+          }
         }
 
         el.detailsContainer
@@ -3358,7 +3620,9 @@
         if (IS_TAB_LOCKED && tab !== state.activeTab) return;
         state.isAddingNew = false;
         state.activeTab = tab;
+        state.viewMode = normalizeViewModeForTab(tab, state.viewMode);
         localStorage.setItem(UI_ACTIVE_TAB_STORAGE_KEY, tab);
+        localStorage.setItem(UI_VIEW_MODE_STORAGE_KEY, state.viewMode);
         state.page = getPersistedPage(tab);
         state.searchTerm = "";
         el.searchInput.value = "";
@@ -3368,20 +3632,31 @@
 
         el.tabMovies.classList.toggle("active", tab === "movies");
         el.tabSeries.classList.toggle("active", tab === "series");
+        el.listViewBtn.classList.toggle("primary", state.viewMode === "list");
+        el.gridViewBtn.classList.toggle("primary", state.viewMode === "grid");
+        el.compressedViewBtn.style.display = tab === "series" ? "" : "none";
+        el.compressedViewBtn.classList.toggle(
+          "primary",
+          state.viewMode === "compressed",
+        );
         updateAddButtonUi();
 
         applyFilterAndRender(false, true);
       }
 
       function setViewMode(mode) {
-        state.viewMode = mode;
-        localStorage.setItem(UI_VIEW_MODE_STORAGE_KEY, mode);
-        el.listViewBtn.classList.toggle("primary", mode === "list");
-        el.gridViewBtn.classList.toggle("primary", mode === "grid");
+        const nextMode = normalizeViewModeForTab(state.activeTab, mode);
+        state.viewMode = nextMode;
+        localStorage.setItem(UI_VIEW_MODE_STORAGE_KEY, nextMode);
+        el.listViewBtn.classList.toggle("primary", nextMode === "list");
+        el.gridViewBtn.classList.toggle("primary", nextMode === "grid");
+        el.compressedViewBtn.classList.toggle("primary", nextMode === "compressed");
+
+        applyFilterAndRender(false, false);
 
         // Recalculate page so the currently selected item is visible in the new view mode.
         if (state.selectedKey) {
-          const pageSize = mode === "grid" ? GRID_PAGE_SIZE : LIST_PAGE_SIZE;
+          const pageSize = getCurrentPageSize(nextMode);
           const globalIdx = state.filtered.findIndex((i) => i.key === state.selectedKey);
           if (globalIdx >= 0) {
             state.page = Math.floor(globalIdx / pageSize) + 1;
@@ -3443,6 +3718,9 @@
 
         el.listViewBtn.addEventListener("click", () => setViewMode("list"));
         el.gridViewBtn.addEventListener("click", () => setViewMode("grid"));
+        el.compressedViewBtn.addEventListener("click", () =>
+          setViewMode("compressed"),
+        );
 
         el.detailEditBtn.addEventListener("click", () => {
           if (!getSelectedItem()) return;
@@ -3629,6 +3907,12 @@
           bindEvents();
           el.listViewBtn.classList.toggle("primary", state.viewMode === "list");
           el.gridViewBtn.classList.toggle("primary", state.viewMode === "grid");
+          el.compressedViewBtn.style.display =
+            state.activeTab === "series" ? "" : "none";
+          el.compressedViewBtn.classList.toggle(
+            "primary",
+            state.viewMode === "compressed",
+          );
           updateDetailsActionButtons();
           console.log("Backend ready, loading workbook...");
           await loadWorkbook();
