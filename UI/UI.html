@@ -577,6 +577,10 @@
         color: #facc15;
       }
 
+      .season-chip.tone-purple {
+        color: #a855f7;
+      }
+
       .season-chip.tone-blue {
         color: #60a5fa;
       }
@@ -881,6 +885,34 @@
         border-color: var(--primary);
         color: var(--primary);
       }
+      .xl-actions {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .xl-save-btn {
+        border: 1px solid var(--primary-2);
+        border-radius: 4px;
+        background: var(--primary);
+        color: #062b14;
+        font-size: 11px;
+        font-weight: 700;
+        padding: 2px 8px;
+        cursor: pointer;
+      }
+      .xl-save-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+      .xl-quality-select {
+        width: 100%;
+        background: #0b1220;
+        border: 1px solid #374151;
+        border-radius: 4px;
+        color: var(--text);
+        padding: 2px 5px;
+        font-size: 11px;
+      }
     </style>
   </head>
   <body>
@@ -998,6 +1030,7 @@
       const UI_VIEW_MODE_STORAGE_KEY = "movieUiViewMode";
       const UI_PAGE_STORAGE_KEY = "movieUiPage";
       const UI_TITLE_ONLY_STORAGE_KEY = "movieUiTitleOnly";
+      const UI_XL_VIEW_STORAGE_KEY = "movieUiXlView";
       const SERIES_FOLDER_PICKER_ID = "movieproject-series-folder-picker";
       let lastSeriesFolderHandle = null;
 
@@ -1104,6 +1137,13 @@
         return saved === "true" || saved === "1";
       }
 
+      function getPersistedXlView() {
+        const saved = (localStorage.getItem(UI_XL_VIEW_STORAGE_KEY) || "")
+          .trim()
+          .toLowerCase();
+        return saved === "true" || saved === "1";
+      }
+
       function getPersistedPage(tab = null) {
         const normalizedTab =
           tab === "series" || tab === "movies" ? tab : getPersistedActiveTab();
@@ -1173,7 +1213,7 @@
         isBatchDeleting: false,
         lastWheelPageNavAt: 0,
         isAddingNew: false,
-        xlView: false,
+        xlView: getPersistedXlView(),
         xlFilters: {},
       };
 
@@ -1705,6 +1745,8 @@
                 if (!quality || quality === "x264") return "red";
                 if (quality === "hevc") return "yellow";
               }
+
+              if (resolution === "1080p" && quality === "x264") return "purple";
 
               return "blue";
             })(),
@@ -4102,10 +4144,27 @@
         const bodyRows = rows
           .map((item, idx) => {
             const cells = columns
-              .map(
-                (col) =>
-                  `<td title="${escapeHtml(getXlCellValue(item, col.key))}">${escapeHtml(getXlCellValue(item, col.key))}</td>`,
-              )
+              .map((col) => {
+                if (col.key === "_quality") {
+                  const inferredQuality = getQualityKey(item);
+                  const currentQuality =
+                    inferredQuality === "hevc" || inferredQuality === "x264"
+                      ? inferredQuality
+                      : "";
+                  const qualityOpts = [
+                    { value: "", label: "-" },
+                    { value: "hevc", label: "hevc" },
+                    { value: "x264", label: "x264" },
+                  ]
+                    .map(
+                      (opt) =>
+                        `<option value="${opt.value}"${currentQuality === opt.value ? " selected" : ""}>${opt.label}</option>`,
+                    )
+                    .join("");
+                  return `<td><select class="xl-quality-select" data-row-key="${escapeHtml(item.key)}">${qualityOpts}</select></td>`;
+                }
+                return `<td title="${escapeHtml(getXlCellValue(item, col.key))}">${escapeHtml(getXlCellValue(item, col.key))}</td>`;
+              })
               .join("");
             return `<tr><td>${idx + 1}</td>${cells}</tr>`;
           })
@@ -4114,6 +4173,7 @@
         const clearBtn = hasActiveXlFilters()
           ? `<button class="xl-clear-filters-btn" id="xlClearFiltersBtn">Clear Filters</button>`
           : "";
+        const saveBtn = `<button class="xl-save-btn" id="xlSaveChangesBtn"${state.hasUnsavedChanges ? "" : " disabled"}>Save</button>`;
 
         container.innerHTML = `
           <div class="xl-table-wrap">
@@ -4127,7 +4187,7 @@
           </div>
           <div class="xl-count-bar">
             <span>Showing <strong>${rows.length}</strong> of <strong>${state.filtered.length}</strong> item${state.filtered.length !== 1 ? "s" : ""}</span>
-            ${clearBtn}
+            <span class="xl-actions">${saveBtn}${clearBtn}</span>
           </div>`;
 
         // Attach per-column filter input handlers (preserve scroll position).
@@ -4158,10 +4218,57 @@
             renderXlView();
           });
         }
+
+        container.querySelectorAll(".xl-quality-select").forEach((select) => {
+          select.addEventListener("change", () => {
+            const targetKey = select.dataset.rowKey;
+            if (!targetKey) return;
+            const targetItem = getActiveData().find((item) => item.key === targetKey);
+            if (!targetItem) return;
+            const wrap = container.querySelector(".xl-table-wrap");
+            const scrollTop = wrap ? wrap.scrollTop : 0;
+            onDetailFieldInput(targetItem, "Quality", select.value);
+            renderXlView();
+            const newWrap = container.querySelector(".xl-table-wrap");
+            if (newWrap) newWrap.scrollTop = scrollTop;
+          });
+        });
+
+        const saveChangesBtn = document.getElementById("xlSaveChangesBtn");
+        if (saveChangesBtn) {
+          saveChangesBtn.addEventListener("click", async () => {
+            flushDetailFormEdits();
+            if (!state.hasUnsavedChanges) return;
+            const pageLock = beginPageLock();
+            state.suppressNextPageReset = true;
+            try {
+              await saveWorkbookToFile({
+                quiet: true,
+                refreshDetails: false,
+                exitEditMode: false,
+                preservedPage: pageLock.page,
+                preservedSelection: pageLock.selectedKey,
+              });
+              restorePageLock(pageLock);
+              renderXlView();
+              render();
+              renderDetails();
+            } finally {
+              endPageLock(pageLock);
+              setTimeout(() => {
+                state.suppressNextPageReset = false;
+              }, 0);
+            }
+          });
+        }
       }
 
       function setXlView(enabled) {
         state.xlView = !!enabled;
+        localStorage.setItem(
+          UI_XL_VIEW_STORAGE_KEY,
+          state.xlView ? "true" : "false",
+        );
         if (el.xlViewToggle) el.xlViewToggle.checked = state.xlView;
         const layout = document.querySelector(".layout");
         if (layout) layout.style.display = state.xlView ? "none" : "";
@@ -4422,8 +4529,8 @@
             "primary",
             state.viewMode === "compressed",
           );
-          // Ensure XL container is hidden initially
-          if (el.xlViewContainer) el.xlViewContainer.style.display = "none";
+          // Restore persisted XL view state on startup.
+          setXlView(state.xlView);
           updateDetailsActionButtons();
           console.log("Backend ready, loading workbook...");
           await loadWorkbook();
