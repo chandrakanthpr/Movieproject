@@ -702,6 +702,185 @@
           max-width: 220px;
         }
       }
+
+      /* ── XL View Toggle ───────────────────────────────────────────────── */
+      .xl-toggle-label {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        cursor: pointer;
+        user-select: none;
+        white-space: nowrap;
+        flex-shrink: 0;
+      }
+      .xl-toggle-label input[type="checkbox"] {
+        display: none;
+      }
+      .xl-toggle-track {
+        width: 34px;
+        height: 18px;
+        background: #1f2937;
+        border-radius: 9px;
+        border: 1px solid #374151;
+        position: relative;
+        transition: background 0.2s, border-color 0.2s;
+        flex-shrink: 0;
+      }
+      .xl-toggle-thumb {
+        position: absolute;
+        top: 2px;
+        left: 2px;
+        width: 12px;
+        height: 12px;
+        background: #4b5563;
+        border-radius: 50%;
+        transition: left 0.18s, background 0.18s;
+      }
+      .xl-toggle-label input:checked + .xl-toggle-track {
+        background: #14532d;
+        border-color: var(--primary);
+      }
+      .xl-toggle-label input:checked + .xl-toggle-track .xl-toggle-thumb {
+        left: 18px;
+        background: var(--primary);
+      }
+      .xl-toggle-text {
+        font-size: 11px;
+        font-weight: 700;
+        color: var(--muted);
+        letter-spacing: 0.3px;
+      }
+      .xl-toggle-label:has(input:checked) .xl-toggle-text {
+        color: var(--primary);
+      }
+
+      /* ── XL View Container ────────────────────────────────────────────── */
+      #xlViewContainer {
+        flex: 1;
+        overflow: hidden;
+        display: none;
+        flex-direction: column;
+        background: rgba(17, 24, 39, 0.9);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        box-shadow: var(--shadow);
+      }
+      .xl-table-wrap {
+        overflow: auto;
+        flex: 1;
+        min-height: 0;
+      }
+      .xl-table {
+        border-collapse: collapse;
+        width: 100%;
+        font-size: 12px;
+        min-width: 900px;
+      }
+      .xl-table thead {
+        position: sticky;
+        top: 0;
+        z-index: 5;
+      }
+      .xl-table thead tr.xl-header-row th {
+        background: #1a2540;
+        color: var(--primary);
+        font-weight: 700;
+        padding: 7px 10px;
+        border: 1px solid #2d3a50;
+        text-align: left;
+        white-space: nowrap;
+        font-size: 11px;
+        letter-spacing: 0.4px;
+        text-transform: uppercase;
+      }
+      .xl-table thead tr.xl-filter-row th {
+        background: #111c30;
+        padding: 4px 6px;
+        border: 1px solid #2d3a50;
+      }
+      .xl-filter-input {
+        width: 100%;
+        background: #0b1220;
+        border: 1px solid #374151;
+        border-radius: 4px;
+        color: var(--text);
+        padding: 3px 6px;
+        font-size: 11px;
+        outline: none;
+        min-width: 60px;
+      }
+      .xl-filter-input:focus {
+        border-color: var(--primary);
+        box-shadow: 0 0 0 1px rgba(34, 197, 94, 0.25);
+      }
+      .xl-filter-input::placeholder {
+        color: #4b5563;
+        font-style: italic;
+      }
+      .xl-table tbody tr:nth-child(even) {
+        background: #0d1526;
+      }
+      .xl-table tbody tr:nth-child(odd) {
+        background: #0b1220;
+      }
+      .xl-table tbody tr:hover {
+        background: #162035;
+      }
+      .xl-table tbody td {
+        padding: 5px 10px;
+        border-right: 1px solid #1a2438;
+        border-bottom: 1px solid #1a2438;
+        color: var(--text);
+        max-width: 280px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .xl-table tbody td:first-child {
+        color: #4b5563;
+        font-size: 10px;
+        text-align: right;
+        min-width: 32px;
+        padding: 5px 6px;
+        background: #0f1a2e;
+        border-right: 2px solid #2d3a50;
+        user-select: none;
+        font-variant-numeric: tabular-nums;
+      }
+      .xl-table thead tr.xl-header-row th:first-child,
+      .xl-table thead tr.xl-filter-row th:first-child {
+        width: 38px;
+        min-width: 38px;
+        max-width: 38px;
+        background: #111c30;
+      }
+      .xl-count-bar {
+        padding: 5px 12px;
+        font-size: 11px;
+        color: var(--muted);
+        border-top: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-shrink: 0;
+        gap: 8px;
+      }
+      .xl-count-bar strong {
+        color: var(--primary);
+      }
+      .xl-clear-filters-btn {
+        background: none;
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        color: var(--muted);
+        font-size: 11px;
+        padding: 2px 8px;
+        cursor: pointer;
+      }
+      .xl-clear-filters-btn:hover {
+        border-color: var(--primary);
+        color: var(--primary);
+      }
     </style>
   </head>
   <body>
@@ -728,6 +907,11 @@
           <button id="searchBtn" class="btn"></button>
           <button id="clearBtn" class="btn"></button>
         </div>
+        <label class="xl-toggle-label" for="xlViewToggle" title="Toggle XL spreadsheet view">
+          <input type="checkbox" id="xlViewToggle" />
+          <span class="xl-toggle-track"><span class="xl-toggle-thumb"></span></span>
+          <span class="xl-toggle-text">XL View</span>
+        </label>
       </div>
 
       <div class="layout">
@@ -798,6 +982,8 @@
           </div>
         </section>
       </div>
+
+      <div id="xlViewContainer"></div>
     </div>
 
     <script>
@@ -840,6 +1026,45 @@
 
         const handle = await window.showDirectoryPicker(baseOptions);
         lastSeriesFolderHandle = handle;
+        return handle;
+      }
+
+      const MOVIE_FILE_PICKER_ID = "movieproject-movie-file-picker";
+      let lastMovieFileHandle = null;
+
+      async function showRememberedMovieFilePicker() {
+        if (typeof window.showOpenFilePicker !== "function") return null;
+
+        const baseOptions = {
+          id: MOVIE_FILE_PICKER_ID,
+          multiple: false,
+          types: [
+            {
+              description: "Video files",
+              accept: {
+                "video/*": [".mkv", ".mp4", ".avi", ".mov", ".m4v", ".ts", ".m2ts", ".wmv", ".flv", ".webm"],
+              },
+            },
+          ],
+        };
+
+        if (lastMovieFileHandle) {
+          try {
+            const [handle] = await window.showOpenFilePicker({
+              ...baseOptions,
+              startIn: lastMovieFileHandle,
+            });
+            lastMovieFileHandle = handle;
+            return handle;
+          } catch (error) {
+            if (error?.name !== "DataError") {
+              throw error;
+            }
+          }
+        }
+
+        const [handle] = await window.showOpenFilePicker(baseOptions);
+        lastMovieFileHandle = handle;
         return handle;
       }
 
@@ -948,6 +1173,8 @@
         isBatchDeleting: false,
         lastWheelPageNavAt: 0,
         isAddingNew: false,
+        xlView: false,
+        xlFilters: {},
       };
 
       const el = {
@@ -985,6 +1212,8 @@
         deleteSelectedBtn: document.getElementById("deleteSelectedBtn"),
         fetchAllStatus: document.getElementById("fetchAllStatus"),
         addMovieBtn: document.getElementById("addMovieBtn"),
+        xlViewToggle: document.getElementById("xlViewToggle"),
+        xlViewContainer: document.getElementById("xlViewContainer"),
       };
 
       function getResourceValue(path) {
@@ -2214,6 +2443,7 @@
           state.page = 1;
         }
         if (renderAfter) render();
+        if (state.xlView) renderXlView();
         updateFetchAllControls();
       }
 
@@ -3384,6 +3614,13 @@
               <button id="editSeriesBrowseBtn" class="btn" type="button">Select Folder…</button>
             </div>`;
           }
+          if (field === "filename" && item.sheetType !== "series") {
+            return `<div style="display:flex;gap:6px;align-items:center;min-width:0;">
+              <input class="detail-input" data-edit-field="filename" value="${escapeHtml(item[field] || "")}" style="flex:1;min-width:0;" />
+              <input id="editMovieFileBrowse" type="file" style="display:none;" accept=".mkv,.mp4,.avi,.mov,.m4v,.ts,.m2ts,.wmv,.flv,.webm" />
+              <button id="editMovieBrowseBtn" class="btn" type="button">Browse…</button>
+            </div>`;
+          }
           return `<input class="detail-input" data-edit-field="${field}" value="${escapeHtml(item[field] || "")}" />`;
         };
 
@@ -3632,6 +3869,64 @@
             seriesFilenameInput.addEventListener("input", autoFillFromTypedFilename);
             seriesFilenameInput.addEventListener("change", autoFillFromTypedFilename);
           }
+
+          if (item.sheetType !== "series") {
+            const movieBrowseBtn = el.detailsContainer.querySelector("#editMovieBrowseBtn");
+            const movieFileBrowse = el.detailsContainer.querySelector("#editMovieFileBrowse");
+
+            const applyMovieFileSelection = (file) => {
+              if (!file) return;
+              const nameNoExt = file.name.replace(/\.[^.]+$/, "");
+              const parsed = parseMovieFilenameForForm(nameNoExt);
+
+              const setFieldAndInput = (field, value) => {
+                if (!normalize(value)) return;
+                onDetailFieldInput(item, field, value);
+                const inputNode = el.detailsContainer.querySelector(
+                  `[data-edit-field="${field}"]`,
+                );
+                if (inputNode) inputNode.value = value;
+              };
+
+              setFieldAndInput("filename", nameNoExt);
+              setFieldAndInput("resolution", parsed.resolution || "");
+              setFieldAndInput("Quality", parsed.quality || "");
+
+              const bytes = file.size || 0;
+              if (bytes > 0) {
+                const gb = bytes / (1024 ** 3);
+                const sizeValue =
+                  gb >= 0.1
+                    ? gb.toFixed(2)
+                    : (bytes / (1024 ** 2)).toFixed(0) + " MB";
+                setFieldAndInput("storageSize", sizeValue);
+              }
+            };
+
+            if (movieBrowseBtn && movieFileBrowse) {
+              movieBrowseBtn.addEventListener("click", async () => {
+                if (typeof window.showOpenFilePicker === "function") {
+                  try {
+                    const handle = await showRememberedMovieFilePicker();
+                    if (handle) {
+                      const file = await handle.getFile();
+                      applyMovieFileSelection(file);
+                      return;
+                    }
+                  } catch (_) {
+                    // User canceled or API unavailable — fall through to input.
+                  }
+                }
+                movieFileBrowse.click();
+              });
+
+              movieFileBrowse.addEventListener("change", () => {
+                const files = movieFileBrowse.files;
+                if (!files || files.length === 0) return;
+                applyMovieFileSelection(files[0]);
+              });
+            }
+          }
         }
 
         el.detailsContainer
@@ -3697,6 +3992,7 @@
         state.searchTerm = "";
         el.searchInput.value = "";
         state.isMetadataCollapsed = true;
+        state.xlFilters = {};
         restorePersistedSelectionForTab(tab);
         state.selectedItemKeys.clear();
 
@@ -3736,6 +4032,143 @@
         render();
         renderDetails();
         scrollSelectedItemIntoView();
+      }
+
+      // ── XL Spreadsheet View ───────────────────────────────────────────────
+
+      const XL_MOVIE_COLUMNS = [
+        { key: "title",       label: "Title"        },
+        { key: "filename",    label: "Filename"      },
+        { key: "resolution",  label: "Resolution"    },
+        { key: "year",        label: "Year"          },
+        { key: "_quality",    label: "Quality"       },
+        { key: "storageCase", label: "Storage Case"  },
+        { key: "storageHdd",  label: "Storage HDD"   },
+        { key: "storageSize", label: "Storage Size"  },
+      ];
+
+      const XL_SERIES_COLUMNS = [
+        { key: "title",       label: "Title"        },
+        { key: "filename",    label: "Filename"      },
+        { key: "resolution",  label: "Resolution"    },
+        { key: "_quality",    label: "Quality"       },
+        { key: "storageCase", label: "Storage Case"  },
+        { key: "storageHdd",  label: "Storage HDD"   },
+        { key: "storageSize", label: "Storage Size"  },
+        { key: "Season",      label: "Season"        },
+      ];
+
+      function getXlColumns() {
+        return state.activeTab === "movies" ? XL_MOVIE_COLUMNS : XL_SERIES_COLUMNS;
+      }
+
+      function getXlCellValue(item, key) {
+        if (key === "_quality") return getDisplayQuality(item);
+        return normalize(item[key]);
+      }
+
+      function hasActiveXlFilters() {
+        return Object.values(state.xlFilters).some((v) => normalize(v) !== "");
+      }
+
+      function renderXlView() {
+        const container = el.xlViewContainer;
+        if (!container) return;
+
+        const columns = getXlColumns();
+        const filters = state.xlFilters;
+
+        // Base: search-filtered items; then apply per-column filters on top.
+        let rows = state.filtered;
+        columns.forEach((col) => {
+          const f = normalize(filters[col.key] || "").toLowerCase();
+          if (!f) return;
+          rows = rows.filter((item) =>
+            getXlCellValue(item, col.key).toLowerCase().includes(f),
+          );
+        });
+
+        const headerCells = columns
+          .map((col) => `<th>${escapeHtml(col.label)}</th>`)
+          .join("");
+
+        const filterCells = columns
+          .map(
+            (col) =>
+              `<th><input class="xl-filter-input" type="text" placeholder="Filter\u2026" data-col="${escapeHtml(col.key)}" value="${escapeHtml(normalize(filters[col.key] || ""))}" /></th>`,
+          )
+          .join("");
+
+        const bodyRows = rows
+          .map((item, idx) => {
+            const cells = columns
+              .map(
+                (col) =>
+                  `<td title="${escapeHtml(getXlCellValue(item, col.key))}">${escapeHtml(getXlCellValue(item, col.key))}</td>`,
+              )
+              .join("");
+            return `<tr><td>${idx + 1}</td>${cells}</tr>`;
+          })
+          .join("");
+
+        const clearBtn = hasActiveXlFilters()
+          ? `<button class="xl-clear-filters-btn" id="xlClearFiltersBtn">Clear Filters</button>`
+          : "";
+
+        container.innerHTML = `
+          <div class="xl-table-wrap">
+            <table class="xl-table">
+              <thead>
+                <tr class="xl-header-row"><th></th>${headerCells}</tr>
+                <tr class="xl-filter-row"><th></th>${filterCells}</tr>
+              </thead>
+              <tbody>${bodyRows || `<tr><td colspan="${columns.length + 1}" style="text-align:center;padding:24px;color:var(--muted);">No items match the current filters.</td></tr>`}</tbody>
+            </table>
+          </div>
+          <div class="xl-count-bar">
+            <span>Showing <strong>${rows.length}</strong> of <strong>${state.filtered.length}</strong> item${state.filtered.length !== 1 ? "s" : ""}</span>
+            ${clearBtn}
+          </div>`;
+
+        // Attach per-column filter input handlers (preserve scroll position).
+        container.querySelectorAll(".xl-filter-input").forEach((input) => {
+          input.addEventListener("input", () => {
+            const wrap = container.querySelector(".xl-table-wrap");
+            const scrollTop = wrap ? wrap.scrollTop : 0;
+            state.xlFilters[input.dataset.col] = input.value;
+            renderXlView();
+            const newWrap = container.querySelector(".xl-table-wrap");
+            if (newWrap) newWrap.scrollTop = scrollTop;
+            // Re-focus the changed input (same column).
+            const refocused = container.querySelector(
+              `.xl-filter-input[data-col="${input.dataset.col}"]`,
+            );
+            if (refocused) {
+              refocused.focus();
+              const len = refocused.value.length;
+              refocused.setSelectionRange(len, len);
+            }
+          });
+        });
+
+        const clearFiltersBtn = document.getElementById("xlClearFiltersBtn");
+        if (clearFiltersBtn) {
+          clearFiltersBtn.addEventListener("click", () => {
+            state.xlFilters = {};
+            renderXlView();
+          });
+        }
+      }
+
+      function setXlView(enabled) {
+        state.xlView = !!enabled;
+        if (el.xlViewToggle) el.xlViewToggle.checked = state.xlView;
+        const layout = document.querySelector(".layout");
+        if (layout) layout.style.display = state.xlView ? "none" : "";
+        if (el.xlViewContainer) {
+          el.xlViewContainer.style.display = state.xlView ? "flex" : "none";
+        }
+        if (state.xlView) renderXlView();
       }
 
       function bindEvents() {
@@ -3791,6 +4224,12 @@
         el.compressedViewBtn.addEventListener("click", () =>
           setViewMode("compressed"),
         );
+
+        if (el.xlViewToggle) {
+          el.xlViewToggle.addEventListener("change", () => {
+            setXlView(el.xlViewToggle.checked);
+          });
+        }
 
         el.detailEditBtn.addEventListener("click", () => {
           if (!getSelectedItem()) return;
@@ -3983,6 +4422,8 @@
             "primary",
             state.viewMode === "compressed",
           );
+          // Ensure XL container is hidden initially
+          if (el.xlViewContainer) el.xlViewContainer.style.display = "none";
           updateDetailsActionButtons();
           console.log("Backend ready, loading workbook...");
           await loadWorkbook();
