@@ -797,6 +797,29 @@
         letter-spacing: 0.4px;
         text-transform: uppercase;
       }
+      .xl-sort-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        border: 0;
+        background: transparent;
+        color: inherit;
+        font: inherit;
+        letter-spacing: inherit;
+        text-transform: inherit;
+        padding: 0;
+        cursor: pointer;
+      }
+      .xl-sort-btn:hover {
+        color: #86efac;
+      }
+      .xl-sort-indicator {
+        font-size: 10px;
+        color: #64748b;
+      }
+      .xl-sort-btn.active .xl-sort-indicator {
+        color: var(--primary);
+      }
       .xl-table thead tr.xl-filter-row th {
         background: #111c30;
         padding: 4px 6px;
@@ -1215,6 +1238,7 @@
         isAddingNew: false,
         xlView: getPersistedXlView(),
         xlFilters: {},
+        xlSort: { key: null, direction: "asc" },
       };
 
       const el = {
@@ -1602,22 +1626,14 @@
         return normalize(meta.Plot || meta.plot || "");
       }
 
-      function getQualityKey(item) {
-        const explicit = normalize(item?.Quality).toLowerCase();
-        if (explicit === "x265") return "hevc";
-        if (explicit === "h264") return "x264";
-        if (explicit) return explicit;
-
-        const filename = normalize(item?.filename);
-        if (!filename) return "";
-        if (/\(X5\)|\[X5\]|\bX5\b/i.test(filename)) return "hevc";
-        if (/\bx264\b|\bh264\b/i.test(filename)) return "x264";
-        return "";
+      function getStoredQuality(item) {
+        const quality = normalize(item?.Quality).toLowerCase();
+        return quality === "-" ? "" : quality;
       }
 
       function getDisplayQuality(item) {
-        const qualityKey = getQualityKey(item);
-        if (qualityKey) return qualityKey;
+        const quality = getStoredQuality(item);
+        if (quality) return quality;
         return t("values.dash");
       }
 
@@ -1738,7 +1754,7 @@
             sort: getSeasonSortValue(label),
             tone: (() => {
               const resolution = normalize(entry?.resolution).toLowerCase();
-              const quality = getQualityKey(entry);
+              const quality = getStoredQuality(entry);
               const isLowResolution = resolution === "sd" || resolution === "720p";
 
               if (isLowResolution) {
@@ -1840,6 +1856,8 @@
         return requestBackend("saveWorkbook", {
           movieRows: state.movieRows,
           seriesRows: state.seriesRows,
+          movies: state.movies,
+          series: state.series,
           moviesSheetName: state.moviesSheetName,
           seriesSheetName: state.seriesSheetName,
           sourceFileName: state.sourceFileName,
@@ -2187,7 +2205,7 @@
         }
         if (field === "Quality") {
           const q = normalize(value).toLowerCase();
-          item.Quality = q;
+          item.Quality = q === "-" ? "" : q;
         }
         syncItemToStateRows(item);
         state.hasUnsavedChanges = true;
@@ -2390,8 +2408,7 @@
       }
 
       function isHevcQuality(item) {
-        // Keep badge logic aligned with displayed quality (includes filename fallback like X5).
-        return normalize(getDisplayQuality(item)).toLowerCase() === "hevc";
+        return getStoredQuality(item) === "hevc";
       }
 
       function getHevcBadgeHtml() {
@@ -3163,7 +3180,7 @@
         const year = allBrackets.length >= 1 ? allBrackets[0][1].trim() : "";
         const resolution =
           allBrackets.length >= 2 ? allBrackets[1][1].trim() : "";
-        const quality = /\[X5\]/i.test(nameNoExt) ? "hevc" : "x264";
+        const quality = "";
         return { title: titlePart, year, resolution, quality };
       }
 
@@ -3174,18 +3191,14 @@
             title: "",
             season: "",
             resolution: "",
-            quality: "x264",
-            qualityDetected: false,
+            quality: "",
             storageSize: "",
           };
 
         const name = raw.replace(/[\\/]+/g, " ").trim();
         const seasonMatch = name.match(/S\d{1,2}/i);
         const resolutionMatch = name.match(/(?:\(|\[)?\s*(2160p|1080p|720p|480p|360p|SD)\s*(?:\)|\])?/i);
-        const hasHevcToken = /\(X5\)|\[X5\]|\bX5\b|\bHEVC\b|\bX265\b|\bH\.265\b/i.test(name);
-        const hasX264Token = /\bX264\b|\bH\.264\b/i.test(name);
-        const quality = hasHevcToken ? "hevc" : "x264";
-        const qualityDetected = hasHevcToken || hasX264Token;
+        const quality = "";
         const storageSizeMatch = name.match(/(?:\(|\[)?\s*(\d+(?:\.\d+)?)\s*(TB|TIB|GB|GIB|MB|MIB)\s*(?:\)|\])?/i);
 
         let titlePart = name;
@@ -3220,7 +3233,6 @@
           season,
           resolution,
           quality,
-          qualityDetected,
           storageSize,
         };
       }
@@ -3827,9 +3839,7 @@
             }
             setFieldAndInput("Season", parsed.season || "");
             setFieldAndInput("resolution", parsed.resolution || "");
-            if (parsed.qualityDetected) {
-              setFieldAndInput("Quality", parsed.quality || "");
-            }
+            // Quality is not inferred from folder names; keep DB-driven value.
             setFieldAndInput("storageSize", parsed.storageSize || "");
           };
 
@@ -4113,12 +4123,73 @@
         return Object.values(state.xlFilters).some((v) => normalize(v) !== "");
       }
 
+      function parseSortableValue(rawValue) {
+        const value = normalize(rawValue);
+        if (!value) return { type: "empty", value: "" };
+
+        const compact = value.replace(/,/g, "").trim();
+        if (/^-?\d+(\.\d+)?$/.test(compact)) {
+          return { type: "number", value: Number(compact) };
+        }
+
+        const parsedDate = Date.parse(value);
+        if (!Number.isNaN(parsedDate) && /\d/.test(value)) {
+          return { type: "date", value: parsedDate };
+        }
+
+        return { type: "text", value: value.toLowerCase() };
+      }
+
+      function compareXlRows(a, b, sortKey, direction) {
+        const aParsed = parseSortableValue(getXlCellValue(a, sortKey));
+        const bParsed = parseSortableValue(getXlCellValue(b, sortKey));
+
+        let result = 0;
+        if (aParsed.type === "empty" && bParsed.type !== "empty") {
+          result = 1;
+        } else if (aParsed.type !== "empty" && bParsed.type === "empty") {
+          result = -1;
+        } else if (
+          (aParsed.type === "number" || aParsed.type === "date") &&
+          aParsed.type === bParsed.type
+        ) {
+          result = aParsed.value - bParsed.value;
+        } else {
+          result = String(aParsed.value).localeCompare(String(bParsed.value));
+        }
+
+        if (result === 0) {
+          // Keep sorting deterministic for equal cells.
+          result = normalize(a.key).localeCompare(normalize(b.key));
+        }
+        return direction === "desc" ? -result : result;
+      }
+
+      function getSortIndicator(colKey) {
+        if (state.xlSort.key !== colKey) return "↕";
+        return state.xlSort.direction === "desc" ? "↓" : "↑";
+      }
+
+      function toggleXlSort(colKey) {
+        if (state.xlSort.key === colKey) {
+          state.xlSort.direction = state.xlSort.direction === "asc" ? "desc" : "asc";
+        } else {
+          state.xlSort.key = colKey;
+          state.xlSort.direction = "asc";
+        }
+        renderXlView();
+      }
+
       function renderXlView() {
         const container = el.xlViewContainer;
         if (!container) return;
 
         const columns = getXlColumns();
         const filters = state.xlFilters;
+        const hasSortColumn = columns.some((col) => col.key === state.xlSort.key);
+        if (!hasSortColumn) {
+          state.xlSort = { key: columns[0]?.key || null, direction: "asc" };
+        }
 
         // Base: search-filtered items; then apply per-column filters on top.
         let rows = state.filtered;
@@ -4130,8 +4201,20 @@
           );
         });
 
+        if (state.xlSort.key) {
+          rows = [...rows].sort((a, b) =>
+            compareXlRows(a, b, state.xlSort.key, state.xlSort.direction),
+          );
+        }
+
         const headerCells = columns
-          .map((col) => `<th>${escapeHtml(col.label)}</th>`)
+          .map((col) => {
+            const sortIndicator = getSortIndicator(col.key);
+            const isActive = state.xlSort.key === col.key;
+            const nextDirection =
+              isActive && state.xlSort.direction === "asc" ? "descending" : "ascending";
+            return `<th><button class="xl-sort-btn${isActive ? " active" : ""}" type="button" data-sort-col="${escapeHtml(col.key)}" title="Sort ${escapeHtml(col.label)} ${nextDirection}">${escapeHtml(col.label)} <span class="xl-sort-indicator">${sortIndicator}</span></button></th>`;
+          })
           .join("");
 
         const filterCells = columns
@@ -4146,10 +4229,10 @@
             const cells = columns
               .map((col) => {
                 if (col.key === "_quality") {
-                  const inferredQuality = getQualityKey(item);
+                  const storedQuality = getStoredQuality(item);
                   const currentQuality =
-                    inferredQuality === "hevc" || inferredQuality === "x264"
-                      ? inferredQuality
+                    storedQuality === "hevc" || storedQuality === "x264"
+                      ? storedQuality
                       : "";
                   const qualityOpts = [
                     { value: "", label: "-" },
@@ -4218,6 +4301,14 @@
             renderXlView();
           });
         }
+
+        container.querySelectorAll(".xl-sort-btn").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            const colKey = btn.dataset.sortCol;
+            if (!colKey) return;
+            toggleXlSort(colKey);
+          });
+        });
 
         container.querySelectorAll(".xl-quality-select").forEach((select) => {
           select.addEventListener("change", () => {

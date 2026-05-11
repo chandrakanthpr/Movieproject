@@ -500,16 +500,7 @@ def parse_rows(rows, sheet_type):
         if not title and not filename:
             continue
 
-        # Parse quality marker based on sheet type
-        marker  = ""
         quality = ""
-        if sheet_type == "movies":
-            marker  = str(row[8]).strip() if len(row) > 8 else ""
-            quality = "hevc" if marker.lower() == "y" else ("x264" if marker == "\u2713" else "")
-        elif sheet_type == "series":
-            # For series, check column 7 (R) for quality marker
-            marker  = str(row[7]).strip() if len(row) > 7 else ""
-            quality = "hevc" if marker.lower() == "y" else ("x264" if marker == "\u2713" else "")
 
         poster, metadata_json, imdb_id = "", "", ""
         metadata_col_idx = 9 if sheet_type == "series" else 14
@@ -541,6 +532,10 @@ def parse_rows(rows, sheet_type):
                 if value:
                     return value
             return default
+
+        quality = g_by_alias(["quality", "codec"], default="").lower()
+        if quality == "-":
+            quality = ""
 
         # Column indices differ between movies and series
         if sheet_type == "series":
@@ -604,15 +599,27 @@ def parse_rows(rows, sheet_type):
 
 
 def build_response(movie_rows, series_rows, movies_sheet, series_sheet,
-                   source_file, loaded_from):
+                   source_file, loaded_from, items=None):
+    if items is None:
+        movies = parse_rows(movie_rows, "movies")
+        series = parse_rows(series_rows, "series")
+    else:
+        movies = sorted(
+            [it for it in items if (it or {}).get("sheetType") == "movies"],
+            key=lambda x: int((x or {}).get("rowIndex", 0) or 0),
+        )
+        series = sorted(
+            [it for it in items if (it or {}).get("sheetType") == "series"],
+            key=lambda x: int((x or {}).get("rowIndex", 0) or 0),
+        )
     return {
         "sourceFileName":  source_file,
         "moviesSheetName": movies_sheet,
         "seriesSheetName": series_sheet,
         "movieRows":       movie_rows,
         "seriesRows":      series_rows,
-        "movies":          parse_rows(movie_rows,  "movies"),
-        "series":          parse_rows(series_rows, "series"),
+        "movies":          movies,
+        "series":          series,
         "loadedFrom":      loaded_from,
     }
 
@@ -1057,6 +1064,7 @@ def load_workbook():
             series_sheet = rows["seriesSheetName"],
             source_file  = rows["sourceFileName"],
             loaded_from  = loaded_from,
+            items        = list(merged.values()),
         ))
     except Exception as e:
         logger.error(f"loadWorkbook error: {e}", exc_info=True)
@@ -1079,6 +1087,8 @@ def save_workbook():
         movies_sheet = data.get("moviesSheetName","movies")
         series_sheet = data.get("seriesSheetName","")
         source_file  = data.get("sourceFileName", "Local Seed")
+        direct_movies = data.get("movies", [])
+        direct_series = data.get("series", [])
 
         seed                       = seed_load()
         meta_entry, seed_item_ents = seed_parts(seed)
@@ -1086,7 +1096,26 @@ def save_workbook():
         seed_items = {e["id"]: e["data"]
                       for e in seed_item_ents if e.get("id") and e.get("data")}
 
-        all_items   = parse_rows(movie_rows, "movies") + parse_rows(series_rows, "series")
+        all_items = []
+        if isinstance(direct_movies, list) or isinstance(direct_series, list):
+            for raw in (direct_movies or []) + (direct_series or []):
+                if not isinstance(raw, dict):
+                    continue
+                item = dict(raw)
+                item["Quality"] = _normalize_text(item.get("Quality")).lower()
+                if item["Quality"] == "-":
+                    item["Quality"] = ""
+                if item.get("sheetType") not in ("movies", "series"):
+                    continue
+                row_index = int(item.get("rowIndex", 0) or 0)
+                if row_index <= 0:
+                    continue
+                item["rowIndex"] = row_index
+                all_items.append(item)
+
+        if not all_items:
+            all_items = parse_rows(movie_rows, "movies") + parse_rows(series_rows, "series")
+
         current_map = {make_doc_id(it["sheetType"], it["rowIndex"]): it for it in all_items}
 
         # Only push items that actually changed
@@ -1137,8 +1166,15 @@ def save_workbook():
 
         saved_to    = "firebase" if firebase_saved else "disk"
         loaded_from = "firebase" if firebase_saved else "nosql-seed"
-        result      = build_response(movie_rows, series_rows, movies_sheet,
-                                     series_sheet, source_file, loaded_from)
+        result      = build_response(
+            movie_rows=movie_rows,
+            series_rows=series_rows,
+            movies_sheet=movies_sheet,
+            series_sheet=series_sheet,
+            source_file=source_file,
+            loaded_from=loaded_from,
+            items=all_items,
+        )
         result["savedTo"] = saved_to
         return jsonify(result)
 
@@ -1202,6 +1238,7 @@ def import_nosql_seed():
             series_sheet = rows["seriesSheetName"],
             source_file  = rows["sourceFileName"],
             loaded_from  = "firebase",
+            items        = items,
         )
         result["importedCount"] = len(write_ops)
         return jsonify(result)
@@ -1345,6 +1382,8 @@ def add_movie():
         title    = _normalize_text(data.get("title"))
         filename = _normalize_text(data.get("filename"))
         quality  = _normalize_text(data.get("Quality")).lower()
+        if quality == "-":
+            quality = ""
 
         new_item = {
             "key":          f"{title or filename}__{new_row_index}",
@@ -1415,6 +1454,7 @@ def add_movie():
             series_sheet = rows["seriesSheetName"],
             source_file  = rows["sourceFileName"],
             loaded_from  = loaded_from,
+            items        = all_items,
         )
         result["savedTo"]  = "firebase" if firebase_saved else "disk"
         result["newDocId"] = new_doc_id
