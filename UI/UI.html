@@ -936,6 +936,24 @@
         padding: 2px 5px;
         font-size: 11px;
       }
+      .xl-row-action-btn {
+        border: 1px solid var(--primary-2);
+        border-radius: 4px;
+        background: transparent;
+        color: var(--primary);
+        font-size: 11px;
+        font-weight: 700;
+        padding: 2px 8px;
+        cursor: pointer;
+        white-space: nowrap;
+      }
+      .xl-row-action-btn:hover {
+        background: rgba(34, 197, 94, 0.12);
+      }
+      .xl-row-action-btn:disabled {
+        opacity: 0.55;
+        cursor: wait;
+      }
     </style>
   </head>
   <body>
@@ -1650,6 +1668,10 @@
           .map((s) => s.trim())
           .filter(Boolean);
         return parts.slice(0, 2).join(", ") || t("values.dash");
+      }
+
+      function formatImdbDisplay(value) {
+        return normalize(value).replace(/\s+/g, ".");
       }
 
       function setPlotOnItem(item, plotText) {
@@ -3723,13 +3745,13 @@
                 const meta = getMetadataObject(item);
                 const rating =
                   meta && meta.imdbRating && meta.imdbRating !== "N/A"
-                    ? meta.imdbRating
+                    ? formatImdbDisplay(meta.imdbRating)
                     : null;
                 const votes =
                   meta && meta.imdbVotes && meta.imdbVotes !== "N/A"
-                    ? meta.imdbVotes
+                    ? formatImdbDisplay(meta.imdbVotes)
                     : null;
-                if (rating && votes) return escapeHtml(rating + " / " + votes);
+                if (rating && votes) return escapeHtml(rating + "./." + votes);
                 if (rating) return escapeHtml(rating);
                 return escapeHtml(t("values.dash"));
               })()}</div>
@@ -4093,7 +4115,9 @@
         { key: "filename",    label: "Filename"      },
         { key: "resolution",  label: "Resolution"    },
         { key: "year",        label: "Year"          },
+        { key: "_rating",     label: "Ratings"       },
         { key: "_quality",    label: "Quality"       },
+        { key: "_reload",     label: "Reload"        },
         { key: "storageCase", label: "Storage Case"  },
         { key: "storageHdd",  label: "Storage HDD"   },
         { key: "storageSize", label: "Storage Size"  },
@@ -4103,7 +4127,9 @@
         { key: "title",       label: "Title"        },
         { key: "filename",    label: "Filename"      },
         { key: "resolution",  label: "Resolution"    },
+        { key: "_rating",     label: "Ratings"       },
         { key: "_quality",    label: "Quality"       },
+        { key: "_reload",     label: "Reload"        },
         { key: "storageCase", label: "Storage Case"  },
         { key: "storageHdd",  label: "Storage HDD"   },
         { key: "storageSize", label: "Storage Size"  },
@@ -4116,6 +4142,12 @@
 
       function getXlCellValue(item, key) {
         if (key === "_quality") return getDisplayQuality(item);
+        if (key === "_rating") {
+          const meta = getMetadataObject(item);
+          const imdb = formatImdbDisplay(meta?.imdbRating);
+          return imdb && imdb !== "N/A" ? imdb : t("values.dash");
+        }
+        if (key === "_reload") return "";
         return normalize(item[key]);
       }
 
@@ -4186,14 +4218,16 @@
 
         const columns = getXlColumns();
         const filters = state.xlFilters;
-        const hasSortColumn = columns.some((col) => col.key === state.xlSort.key);
+        const sortableColumns = columns.filter((col) => col.key !== "_reload");
+        const hasSortColumn = sortableColumns.some((col) => col.key === state.xlSort.key);
         if (!hasSortColumn) {
-          state.xlSort = { key: columns[0]?.key || null, direction: "asc" };
+          state.xlSort = { key: sortableColumns[0]?.key || null, direction: "asc" };
         }
 
         // Base: search-filtered items; then apply per-column filters on top.
         let rows = state.filtered;
         columns.forEach((col) => {
+          if (col.key === "_reload") return;
           const f = normalize(filters[col.key] || "").toLowerCase();
           if (!f) return;
           rows = rows.filter((item) =>
@@ -4209,6 +4243,9 @@
 
         const headerCells = columns
           .map((col) => {
+            if (col.key === "_reload") {
+              return `<th>${escapeHtml(col.label)}</th>`;
+            }
             const sortIndicator = getSortIndicator(col.key);
             const isActive = state.xlSort.key === col.key;
             const nextDirection =
@@ -4220,7 +4257,9 @@
         const filterCells = columns
           .map(
             (col) =>
-              `<th><input class="xl-filter-input" type="text" placeholder="Filter\u2026" data-col="${escapeHtml(col.key)}" value="${escapeHtml(normalize(filters[col.key] || ""))}" /></th>`,
+              col.key === "_reload"
+                ? `<th></th>`
+                : `<th><input class="xl-filter-input" type="text" placeholder="Filter\u2026" data-col="${escapeHtml(col.key)}" value="${escapeHtml(normalize(filters[col.key] || ""))}" /></th>`,
           )
           .join("");
 
@@ -4245,6 +4284,9 @@
                     )
                     .join("");
                   return `<td><select class="xl-quality-select" data-row-key="${escapeHtml(item.key)}">${qualityOpts}</select></td>`;
+                }
+                if (col.key === "_reload") {
+                  return `<td><button class="xl-row-action-btn xl-reload-btn" type="button" data-row-key="${escapeHtml(item.key)}">Reload</button></td>`;
                 }
                 return `<td title="${escapeHtml(getXlCellValue(item, col.key))}">${escapeHtml(getXlCellValue(item, col.key))}</td>`;
               })
@@ -4322,6 +4364,38 @@
             renderXlView();
             const newWrap = container.querySelector(".xl-table-wrap");
             if (newWrap) newWrap.scrollTop = scrollTop;
+          });
+        });
+
+        container.querySelectorAll(".xl-reload-btn").forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            const targetKey = btn.dataset.rowKey;
+            if (!targetKey) return;
+            const targetItem = getActiveData().find((item) => item.key === targetKey);
+            if (!targetItem) return;
+            const wrap = container.querySelector(".xl-table-wrap");
+            const scrollTop = wrap ? wrap.scrollTop : 0;
+            btn.disabled = true;
+            btn.textContent = "Reloading...";
+            const pageLock = beginPageLock();
+            try {
+              await fetchLatestMetadataForItem(targetItem, null, {
+                refreshUi: false,
+                externalPageLock: pageLock,
+              });
+              restorePageLock(pageLock);
+              renderXlView();
+              render();
+              renderDetails();
+              const newWrap = container.querySelector(".xl-table-wrap");
+              if (newWrap) newWrap.scrollTop = scrollTop;
+            } catch (error) {
+              btn.disabled = false;
+              btn.textContent = "Reload";
+              alert(error?.message || t("fetch.failed"));
+            } finally {
+              endPageLock(pageLock);
+            }
           });
         });
 
