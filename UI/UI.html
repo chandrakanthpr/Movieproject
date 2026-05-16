@@ -3188,6 +3188,11 @@
 
       // ── Add New Item helpers ───────────────────────────────────────────────
 
+      function inferQualityFromSourceName(sourceName) {
+        const value = normalize(sourceName);
+        return /\[X5\]/i.test(value) ? "hevc" : "x264";
+      }
+
       function parseMovieFilenameForForm(filename) {
         if (!filename)
           return { title: "", year: "", resolution: "", quality: "" };
@@ -3202,7 +3207,7 @@
         const year = allBrackets.length >= 1 ? allBrackets[0][1].trim() : "";
         const resolution =
           allBrackets.length >= 2 ? allBrackets[1][1].trim() : "";
-        const quality = "";
+        const quality = inferQualityFromSourceName(nameNoExt);
         return { title: titlePart, year, resolution, quality };
       }
 
@@ -3220,7 +3225,7 @@
         const name = raw.replace(/[\\/]+/g, " ").trim();
         const seasonMatch = name.match(/S\d{1,2}/i);
         const resolutionMatch = name.match(/(?:\(|\[)?\s*(2160p|1080p|720p|480p|360p|SD)\s*(?:\)|\])?/i);
-        const quality = "";
+        const quality = inferQualityFromSourceName(name);
         const storageSizeMatch = name.match(/(?:\(|\[)?\s*(\d+(?:\.\d+)?)\s*(TB|TIB|GB|GIB|MB|MIB)\s*(?:\)|\])?/i);
 
         let titlePart = name;
@@ -3861,7 +3866,7 @@
             }
             setFieldAndInput("Season", parsed.season || "");
             setFieldAndInput("resolution", parsed.resolution || "");
-            // Quality is not inferred from folder names; keep DB-driven value.
+            setFieldAndInput("Quality", parsed.quality || "x264");
             setFieldAndInput("storageSize", parsed.storageSize || "");
           };
 
