@@ -3731,6 +3731,8 @@
 							<div class="label">${escapeHtml(t("details.quality"))}</div>${valueCell("Quality")}`;
         const storageSizeRow = `
       							<div class="label">${escapeHtml(t("details.storageSize"))}</div>${valueCell("storageSize")}`;
+          const sizePerEpisodeRow = !isMovie ? `
+            <div class="label">${escapeHtml(t("details.sizePerEpisode"))}</div>${valueCell("sizeperepisode")}` : "";
 
         el.detailsContainer.innerHTML = `
 				<div class="detail-card">
@@ -3744,7 +3746,7 @@
 							<div class="label">${escapeHtml(t("details.resolution"))}</div>${valueCell("resolution")}${qualityRow}
 							<div class="label">${escapeHtml(t("details.language"))}</div>${valueCell("language")}
 							<div class="label">${escapeHtml(t("details.storageCase"))}</div>${valueCell("storageCase")}
-							<div class="label">${escapeHtml(t("details.storageHdd"))}</div>${valueCell("storageHdd")}${storageSizeRow}
+              <div class="label">${escapeHtml(t("details.storageHdd"))}</div>${valueCell("storageHdd")}${storageSizeRow}${sizePerEpisodeRow}
 							<div class="label">${escapeHtml(t("details.myRating"))}</div>${valueCell("myRating")}
 							<div class="label">${escapeHtml(t("details.imdbRating"))}</div><div>${(() => {
                 const meta = getMetadataObject(item);
@@ -4132,6 +4134,7 @@
         { key: "title",       label: "Title"        },
         { key: "filename",    label: "Filename"      },
         { key: "resolution",  label: "Resolution"    },
+        { key: "sizeperepisode", label: "Size / Episode" },
         { key: "_rating",     label: "Ratings"       },
         { key: "_quality",    label: "Quality"       },
         { key: "_reload",     label: "Reload"        },
@@ -4293,6 +4296,12 @@
                 if (col.key === "_reload") {
                   return `<td><button class="xl-row-action-btn xl-reload-btn" type="button" data-row-key="${escapeHtml(item.key)}">Reload</button></td>`;
                 }
+                if (col.key === "sizeperepisode") {
+                  const currentValue = normalize(getXlCellValue(item, col.key));
+                  if (!currentValue) {
+                    return `<td><input class="xl-filter-input xl-sizeperepisode-input" type="text" inputmode="decimal" placeholder="MB" data-row-key="${escapeHtml(item.key)}" value="" /></td>`;
+                  }
+                }
                 return `<td title="${escapeHtml(getXlCellValue(item, col.key))}">${escapeHtml(getXlCellValue(item, col.key))}</td>`;
               })
               .join("");
@@ -4366,6 +4375,23 @@
             const wrap = container.querySelector(".xl-table-wrap");
             const scrollTop = wrap ? wrap.scrollTop : 0;
             onDetailFieldInput(targetItem, "Quality", select.value);
+            renderXlView();
+            const newWrap = container.querySelector(".xl-table-wrap");
+            if (newWrap) newWrap.scrollTop = scrollTop;
+          });
+        });
+
+        container.querySelectorAll(".xl-sizeperepisode-input").forEach((input) => {
+          input.addEventListener("change", () => {
+            const targetKey = input.dataset.rowKey;
+            if (!targetKey) return;
+            const targetItem = getActiveData().find((item) => item.key === targetKey);
+            if (!targetItem) return;
+            if (normalize(targetItem.sizeperepisode)) return;
+            const wrap = container.querySelector(".xl-table-wrap");
+            const scrollTop = wrap ? wrap.scrollTop : 0;
+            const normalizedValue = normalize(input.value);
+            onDetailFieldInput(targetItem, "sizeperepisode", normalizedValue);
             renderXlView();
             const newWrap = container.querySelector(".xl-table-wrap");
             if (newWrap) newWrap.scrollTop = scrollTop;
@@ -4677,6 +4703,138 @@
         });
       }
 
+      function installSeriesSizePerEpisodeAutoCalc() {
+        const VIDEO_EXTS = new Set([
+          "mkv", "mp4", "avi", "mov", "m4v", "ts", "m2ts", "wmv", "flv", "webm",
+        ]);
+
+        const isVideo = (name) => {
+          const n = normalize(name || "").toLowerCase();
+          const dot = n.lastIndexOf(".");
+          if (dot < 0 || dot === n.length - 1) return false;
+          return VIDEO_EXTS.has(n.slice(dot + 1));
+        };
+
+        const formatStorageFromBytes = (bytes) => {
+          const b = Number(bytes || 0);
+          if (!Number.isFinite(b) || b <= 0) return "";
+          const gb = b / (1024 ** 3);
+          return gb >= 0.1 ? gb.toFixed(2) : `${(b / (1024 ** 2)).toFixed(0)} MB`;
+        };
+
+        const formatSizePerEpisodeMb = (bytes, videoCount) => {
+          const b = Number(bytes || 0);
+          const c = Number(videoCount || 0);
+          if (!Number.isFinite(b) || b <= 0 || !Number.isFinite(c) || c <= 0) return "";
+          return (b / c / (1024 ** 2)).toFixed(1);
+        };
+
+        const calcMetrics = (fileList) => {
+          let totalBytes = 0;
+          let videoCount = 0;
+          for (const f of fileList || []) {
+            totalBytes += Number(f.size || 0);
+            if (isVideo(f.name || "")) videoCount += 1;
+          }
+          return {
+            storageSize: formatStorageFromBytes(totalBytes),
+            sizePerEpisode: formatSizePerEpisodeMb(totalBytes, videoCount),
+          };
+        };
+
+        const ensureAddPanelSizeInput = () => {
+          let input = document.getElementById("addNewSizePerEpisode");
+          if (input) return input;
+
+          const storageInput = document.getElementById("addNewStorageSize");
+          if (!storageInput) return null;
+          const grid = storageInput.closest(".detail-grid");
+          if (!grid) return null;
+
+          storageInput.insertAdjacentHTML(
+            "afterend",
+            '<div class="label">Size / Episode (MB)</div><input id="addNewSizePerEpisode" class="detail-input" type="text" placeholder="e.g. 512.4" readonly />',
+          );
+          return document.getElementById("addNewSizePerEpisode");
+        };
+
+        document.addEventListener(
+          "click",
+          (event) => {
+            const addBtn = event.target.closest("#addNewBrowseBtn");
+            if (addBtn && state.activeTab === "series") {
+              const addBrowse = document.getElementById("addNewFileBrowse");
+              if (addBrowse) {
+                event.preventDefault();
+                event.stopImmediatePropagation();
+                addBrowse.click();
+                return;
+              }
+            }
+
+            const editBtn = event.target.closest("#editSeriesBrowseBtn");
+            if (editBtn) {
+              const editBrowse = document.getElementById("editSeriesFolderBrowse");
+              if (editBrowse) {
+                event.preventDefault();
+                event.stopImmediatePropagation();
+                editBrowse.click();
+              }
+            }
+          },
+          true,
+        );
+
+        document.addEventListener("change", (event) => {
+          if (event.target && event.target.id === "addNewFileBrowse") {
+            const files = event.target.files;
+            if (!files || files.length === 0 || state.activeTab !== "series") return;
+            const metrics = calcMetrics(files);
+
+            const storageInput = document.getElementById("addNewStorageSize");
+            if (storageInput) storageInput.value = metrics.storageSize;
+
+            const sizeInput = ensureAddPanelSizeInput();
+            if (sizeInput) sizeInput.value = metrics.sizePerEpisode;
+            return;
+          }
+
+          if (event.target && event.target.id === "editSeriesFolderBrowse") {
+            const files = event.target.files;
+            if (!files || files.length === 0) return;
+            const selected = getSelectedItem();
+            if (!selected || selected.sheetType !== "series") return;
+
+            const metrics = calcMetrics(files);
+            onDetailFieldInput(selected, "storageSize", metrics.storageSize);
+            onDetailFieldInput(selected, "sizeperepisode", metrics.sizePerEpisode);
+
+            const storageInput = el.detailsContainer.querySelector('[data-edit-field="storageSize"]');
+            if (storageInput) storageInput.value = metrics.storageSize;
+            const perEpInput = el.detailsContainer.querySelector('[data-edit-field="sizeperepisode"]');
+            if (perEpInput) perEpInput.value = metrics.sizePerEpisode;
+          }
+        });
+
+        if (!window.__patchedAddMovieSizePerEpisode) {
+          window.__patchedAddMovieSizePerEpisode = true;
+          const originalCallApi = callApi;
+          callApi = async function (endpoint, method = "GET", data = null) {
+            if (
+              endpoint === "/api/addMovie" &&
+              method === "POST" &&
+              data &&
+              data.sheetType === "series"
+            ) {
+              const sizeInput = document.getElementById("addNewSizePerEpisode");
+              if (sizeInput && !normalize(data.sizeperepisode || "")) {
+                data.sizeperepisode = normalize(sizeInput.value || "");
+              }
+            }
+            return originalCallApi(endpoint, method, data);
+          };
+        }
+      }
       async function initApp() {
         try {
           console.log("Starting app initialization...");
@@ -4714,7 +4872,11 @@
         }
       }
 
+      installSeriesSizePerEpisodeAutoCalc();
       initApp();
     </script>
   </body>
 </html>
+
+
+

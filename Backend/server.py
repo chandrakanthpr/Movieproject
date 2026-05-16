@@ -1037,7 +1037,13 @@ def load_workbook():
         merged         = dict(seed_items)                    # seed is the base
         for entry in fs_items:                               # Firestore overrides
             if entry.get("id") and entry.get("data"):
-                merged[entry["id"]] = entry["data"]
+                doc_id = entry["id"]
+                # Preserve seed-only fields (e.g. sizeperepisode) when older
+                # Firestore records don't include them yet.
+                merged[doc_id] = {
+                    **seed_items.get(doc_id, {}),
+                    **entry["data"],
+                }
 
         # Fix corrupted series storageHdd values (if quality marker got stored as storageHdd)
         for item in merged.values():
@@ -1356,7 +1362,7 @@ def get_firebase_config():
 def add_movie():
     """
     Add a new collection entry (movie or series).
-    Body: { sheetType, filename, title, year, "Movie Type", resolution, Quality, storageCase, storageHdd, storageSize, Season }
+    Body: { sheetType, filename, title, year, "Movie Type", resolution, Quality, storageCase, storageHdd, storageSize, sizeperepisode, Season }
     """
     try:
         data = request.get_json(silent=True) or {}
@@ -1410,6 +1416,7 @@ def add_movie():
         else:
             season = _normalize_text(data.get("Season")) or extract_season_from_filename(filename) or ""
             new_item["storageSize"] = _normalize_text(data.get("storageSize"))
+            new_item["sizeperepisode"] = _normalize_text(data.get("sizeperepisode"))
             if season:
                 new_item["Season"] = season
 
@@ -1468,3 +1475,6 @@ def add_movie():
 if __name__ == "__main__":
     logger.info(f"Starting server - seed: {SEED_FILE}")
     app.run(host="127.0.0.1", port=5000, debug=True)
+
+
+
