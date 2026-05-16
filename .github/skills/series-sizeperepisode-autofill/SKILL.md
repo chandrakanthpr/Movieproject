@@ -25,6 +25,20 @@ From CSV source:
 3. Write JSON back.
 4. Rebuild `Backend/Data/series_unmatched_filenames.txt` from still-blank series rows only (exclude entries set to `"N/A"`).
 
+## Reusable JSON Reformat Step
+Use this whenever the JSON file gets messy indentation (extra leading spaces/tabs per line) and must be normalized while remaining readable.
+
+Canonical command (2-space pretty JSON):
+
+```powershell
+node -e "const fs=require('fs'); const p='Backend/Data/movieCollection.nosql.json'; const o=JSON.parse(fs.readFileSync(p,'utf8')); fs.writeFileSync(p, JSON.stringify(o, null, 2)+'\\n');"
+```
+
+Notes:
+- This removes indentation drift and tab/space inconsistency by reparsing and reserializing.
+- Always parse-validate after rewrite.
+- Prefer this step after bulk PowerShell `ConvertTo-Json` updates if formatting looks noisy.
+
 ## Normalization Rules (apply to both JSON filename and CSV folder_name)
 Apply in this order:
 1. Strip release markers:
@@ -88,6 +102,7 @@ Treat left-side JSON filename as matching right-side CSV folder_name:
 
 ## Validation Checklist
 - JSON parses successfully after write.
+- JSON formatting is normalized to readable 2-space indentation if requested.
 - `sizeperepisode` exists for all true series rows:
 - numeric/string value for matched rows
 - empty string for still unmatched rows
