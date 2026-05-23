@@ -1257,6 +1257,7 @@
         xlView: getPersistedXlView(),
         xlFilters: {},
         xlSort: { key: null, direction: "asc" },
+        globalStatusTimer: null,
       };
 
       const el = {
@@ -1315,6 +1316,31 @@
 
       function setText(node, text) {
         if (node) node.textContent = text;
+      }
+
+      function showNonBlockingStatusMessage(
+        message,
+        { isError = false, timeoutMs = 6000 } = {},
+      ) {
+        const target = el.fetchAllStatus || null;
+        if (!target || !message) return;
+        target.textContent = String(message);
+        target.style.color = isError ? "#ef4444" : "var(--muted)";
+
+        if (state.globalStatusTimer) {
+          clearTimeout(state.globalStatusTimer);
+          state.globalStatusTimer = null;
+        }
+
+        if (timeoutMs > 0) {
+          const expected = target.textContent;
+          state.globalStatusTimer = setTimeout(() => {
+            if (target.textContent !== expected) return;
+            target.textContent = "";
+            target.style.color = "var(--muted)";
+            state.globalStatusTimer = null;
+          }, timeoutMs);
+        }
       }
 
       function statusMarkup(text) {
@@ -1894,11 +1920,11 @@
             state.hasUnsavedChanges = false;
             if (!quiet) {
               if (result?.savedTo === "firebase") {
-                alert(t("save.savedToFirebase"));
+                showNonBlockingStatusMessage(t("save.savedToFirebase"));
               } else if (result?.savedTo === "disk") {
-                alert(t("save.savedToDisk"));
+                showNonBlockingStatusMessage(t("save.savedToDisk"));
               } else {
-                alert(t("save.completed"));
+                showNonBlockingStatusMessage(t("save.completed"));
               }
             }
             if (refreshDetails) {
@@ -1908,7 +1934,9 @@
             return result;
           })
           .catch((error) => {
-            alert(error.message || t("save.failed"));
+            showNonBlockingStatusMessage(error.message || t("save.failed"), {
+              isError: true,
+            });
             throw error;
           });
       }
@@ -3190,7 +3218,7 @@
 
       function inferQualityFromSourceName(sourceName) {
         const value = normalize(sourceName);
-        return /\[X5\]/i.test(value) ? "hevc" : "x264";
+        return /(^|[^A-Z0-9])X5([^A-Z0-9]|$)/i.test(value) ? "hevc" : "x264";
       }
 
       function parseMovieFilenameForForm(filename) {
